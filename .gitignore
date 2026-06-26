@@ -1,0 +1,9 @@
+*.log
+.DS_Store
+node_modules/
+database.sqlite
+backup.sqlite
+*.sqlite
+*.sqlite-journal
+*.db
+*.db-journal
