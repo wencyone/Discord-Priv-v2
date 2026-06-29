@@ -8,6 +8,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     linkGuard: { type: Boolean, default: true },
     spamGuard: { type: Boolean, default: false },
     gifGuard: { type: Boolean, default: true },
+    gifAuthRole: { type: String, default: '' },
     clickCount: { type: Number, default: 0 },
     manClickCount: { type: Number, default: 0 },
     womanClickCount: { type: Number, default: 0 },
