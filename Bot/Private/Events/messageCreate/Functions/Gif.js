@@ -4,21 +4,20 @@ module.exports = async function Gif(client, message) {
     if (!message.guild) return false;
     if (message.channel?.name?.toLowerCase() !== 'chat') return false;
 
-    const isOwner = global.system?.ownerID?.includes(message.author.id) === true;
-    if (isOwner) return false;
-
     const document = await Settings.findOne({ id: message.guild.id });
     if (!document) return false;
 
     if (document.gifGuard === false) return false;
+
+    const isOwner = global.system?.ownerID?.includes(message.author.id) === true;
+    const hasGifPermission = document.gifAuthRole && message.member?.roles.cache.has(document.gifAuthRole);
+    if (isOwner || hasGifPermission) return false;
 
     const isGifUrl = (value) => {
         const text = String(value || '').toLowerCase();
         return (
             text.includes('tenor.com/') ||
             text.includes('giphy.com/') ||
-            text.includes('media.discordapp.net/') ||
-            text.includes('cdn.discordapp.com/') ||
             /\.gif(?:\?|$)/i.test(text)
         );
     };
