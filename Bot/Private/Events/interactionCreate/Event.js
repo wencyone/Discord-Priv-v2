@@ -31,25 +31,17 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
     const document = await Settings.findOne({ id: i.guild.id });
     if (!document) return;
 
+    if (i.isStringSelectMenu() && i.customId === 'color-role-select') {
+        return handleColorRole(i, i.values[0]);
+    }
+
     if (i.isButton()) {
 
         if (['register', 'man', 'woman'].includes(i.customId)) {
             return i.reply({ content: 'Butonlu kayıt sistemi kapalıdır.', flags: 64 }).catch(() => null);
         }
 
-        for (const [id, name] of Object.entries(roles)) {
-            if (i.customId === id) {
-                const role = i.guild.roles.cache.find(x => x.name === name);
-                if (!role) return await i.reply({ content: `${name} rolü bulunamadı.`, flags: 64 }).catch(() => null);
-                if (i.member.roles.cache.find(x => x.name === name)) {
-                    await i.member.roles.remove(role).catch(() => null);
-                    await i.reply({ content: `${role.name} rolü üzerinden alındı.`, flags: 64 }).catch(() => null);
-                } else {
-                    await i.member.roles.add(role).catch(() => null);
-                    await i.reply({ content: `${role.name} rolü üzerine verildi.`, flags: 64 }).catch(() => null);
-                }
-            }
-        }
+        if (roles[i.customId]) return handleColorRole(i, i.customId);
 
         if (i.customId === 'register') {
             if (!i.member.roles.cache.has(document.registeredRole)) {
@@ -703,3 +695,29 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
         if (![10008, 10062].includes(err?.code)) console.error('[INTERACTION]', err);
     }
 })
+
+async function handleColorRole(interaction, selectedColor) {
+    const colorRoles = Object.values(roles)
+        .map((name) => interaction.guild.roles.cache.find((role) => role.name === name))
+        .filter(Boolean);
+    const memberColorRoles = colorRoles.filter((role) => interaction.member.roles.cache.has(role.id));
+
+    if (selectedColor === 'clear') {
+        if (memberColorRoles.length) await interaction.member.roles.remove(memberColorRoles).catch(() => null);
+        return interaction.reply({ content: 'Tüm renk rollerin temizlendi.', flags: 64 }).catch(() => null);
+    }
+
+    const roleName = roles[selectedColor];
+    const selectedRole = colorRoles.find((role) => role.name === roleName);
+    if (!selectedRole) return interaction.reply({ content: `${roleName} rolü bulunamadı.`, flags: 64 }).catch(() => null);
+
+    const removeSelected = interaction.member.roles.cache.has(selectedRole.id);
+    if (memberColorRoles.length) await interaction.member.roles.remove(memberColorRoles).catch(() => null);
+
+    if (removeSelected) {
+        return interaction.reply({ content: `${selectedRole.name} renk rolün kaldırıldı.`, flags: 64 }).catch(() => null);
+    }
+
+    await interaction.member.roles.add(selectedRole).catch(() => null);
+    return interaction.reply({ content: `${selectedRole.name} renk rolü verildi.`, flags: 64 }).catch(() => null);
+}
