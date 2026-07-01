@@ -213,7 +213,19 @@ async function channels(message, wency, option, botMessage, i) {
 
 async function systems(message, wency, option, botMessage, i) {
     wency[option] = !wency[option];
-    await Settings.updateOne({ id: message.guild.id }, { [option]: wency[option] }, { upsert: true });
+    const changes = { [option]: wency[option] };
+
+    if (option === 'autoRole' && wency.autoRole) {
+        wency.genderSystem = false;
+        changes.genderSystem = false;
+    }
+
+    if (option === 'genderSystem' && wency.genderSystem) {
+        wency.autoRole = false;
+        changes.autoRole = false;
+    }
+
+    await Settings.updateOne({ id: message.guild.id }, { $set: changes }, { upsert: true });
     if (option === 'spamGuard') SpamGuard.setEnabled(message.guild.id, wency[option]);
     message.reply({ content: `${bold(systemLabels[option])} başarıyla ${wency[option] ? 'açıldı' : 'kapatıldı'}.` });
     refreshSetup(message, wency, botMessage);
@@ -275,8 +287,7 @@ async function logSetup(message) {
         { name: 'jail-log' },
         { name: 'mesaj-log' },
         { name: 'voice-log' },
-        { name: 'girenler' },
-        { name: 'çıkanlar' },
+        { name: 'giriş-çıkış-log' },
         { name: 'rol-log' },
         { name: 'emoji-log' },
     ];

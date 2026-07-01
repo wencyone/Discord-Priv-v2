@@ -33,6 +33,10 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
 
     if (i.isButton()) {
 
+        if (['register', 'man', 'woman'].includes(i.customId)) {
+            return i.reply({ content: 'Butonlu kayıt sistemi kapalıdır.', flags: 64 }).catch(() => null);
+        }
+
         for (const [id, name] of Object.entries(roles)) {
             if (i.customId === id) {
                 const role = i.guild.roles.cache.find(x => x.name === name);

@@ -9,8 +9,16 @@ const {
 } = require('discord.js');
 const UserModel = require('../../../Schema/User');
 const { sendTimeoutLog } = require('../../../Base/TimeoutLog');
+const Settings = require('../../../Schema/Settings');
+const { syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    const settings = await Settings.findOne({ id: newMember.guild.id }).catch(() => null);
+    if (settings?.autoRole && settings.bannedGuildTags?.length) {
+        const tagStatus = await syncBannedGuildTag(client, newMember, settings, newMember.user).catch(() => 'blocked');
+        if (tagStatus === 'jailed' || tagStatus === 'blocked' || tagStatus === 'released') return;
+    }
+
     await logRightClickTimeout(oldMember, newMember);
 
     const removedRoles = oldMember.roles.cache.difference(newMember.roles.cache);

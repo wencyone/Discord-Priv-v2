@@ -6,6 +6,10 @@ module.exports = {
     category: 'Auth',
 
     execute: async (client, message, args, wency) => {
+        if (!wency.genderSystem || wency.autoRole) {
+            return message.reply({ content: 'Manuel kayıt sistemi aktif değil.' });
+        }
+
         if (!message.member.permissions.has(Flags.Administrator) && !wency.auth.some(x => message.member.roles.cache.has(x)))
             return message.reply({ content: 'Yetkin yok.' });
 

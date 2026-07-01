@@ -10,6 +10,8 @@ const punishmentSchema = new mongoose.Schema({
     duration: { type: Number, default: 0 },
     expiresAt: { type: Date, default: null },
     previousRoles: { type: [String], default: [] },
+    source: { type: String, default: 'command' },
+    bannedGuildId: { type: String, default: '' },
     active: { type: Boolean, default: true }
 }, { timestamps: true });
 

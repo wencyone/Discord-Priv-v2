@@ -17,6 +17,9 @@ module.exports = {
 
         const punishment = await Punishment.findOne({ guildId: message.guild.id, userId: member.id, type: 'jail', active: true }).sort({ caseId: -1 });
         if (!punishment) return message.reply({ content: 'Bu kullanıcı jailde değil.' });
+        if (punishment.source === 'bannedGuildTag') {
+            return message.reply({ content: 'Bu kullanıcı yasaklı guild tagini bırakmadan jailden çıkarılamaz.' });
+        }
 
         try {
             await releaseJail(client, punishment, false, message.author.id);

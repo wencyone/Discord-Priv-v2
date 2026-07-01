@@ -1,9 +1,10 @@
 const { PermissionFlagsBits } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const {
-    buildLeaderboardPayload,
+    buildLeaderboardPayloads,
+    LEADERBOARD_INTERVAL,
+    LEADERBOARD_TYPES,
     startLeaderboardInterval,
-    updateLeaderboard
 } = require('../../../Base/LeaderboardUtil');
 
 module.exports = {
@@ -19,47 +20,46 @@ module.exports = {
             return message.reply('Bu komutu sadece yöneticiler kullanabilir.');
         }
 
-        const intervalMinutes = 30;
-        const interval = intervalMinutes * 60 * 1000;
-
-        const setupMsg = await message.channel.send({
-            content: 'Leaderboard paneli hazırlanıyor...'
-        });
+        const setupMessage = await message.channel.send({ content: 'Leaderboard panelleri hazırlanıyor...' });
 
         try {
-            const payload = await buildLeaderboardPayload(client, message.guild);
+            const settings = await Settings.findOne({ id: message.guild.id }).lean();
+            const oldPanel = settings?.leaderboardPanel || {};
+            const payloads = await buildLeaderboardPayloads(client, message.guild);
+            const messageIds = {};
 
-            const panelMsg = await message.channel.send(payload);
+            for (const type of LEADERBOARD_TYPES) {
+                const oldMessageId = oldPanel.channelId === message.channel.id
+                    ? oldPanel.messageIds?.[type] || (type === 'messages' ? oldPanel.messageId : null)
+                    : null;
+                const oldMessage = oldMessageId
+                    ? await message.channel.messages.fetch(oldMessageId).catch(() => null)
+                    : null;
+                const panelMessage = oldMessage
+                    ? await oldMessage.edit(payloads[type])
+                    : await message.channel.send(payloads[type]);
+                messageIds[type] = panelMessage.id;
+            }
 
             const panel = {
                 channelId: message.channel.id,
-                messageId: panelMsg.id,
-                interval
+                messageIds,
+                interval: LEADERBOARD_INTERVAL,
             };
 
             await Settings.updateOne(
                 { id: message.guild.id },
-                {
-                    $set: {
-                        leaderboardPanel: panel
-                    }
-                },
+                { $set: { leaderboardPanel: panel } },
                 { upsert: true }
             );
 
-            await updateLeaderboard(client, message.guild.id, panel);
-
             startLeaderboardInterval(client, message.guild.id, panel);
-
-            await setupMsg.edit({
-                content: `Leaderboard paneli kuruldu. Her **${intervalMinutes} dakikada bir** otomatik güncellenecek.`
+            await setupMessage.edit({
+                content: 'Dört leaderboard paneli kuruldu. Paneller her **3 saatte bir** otomatik güncellenecek.'
             });
-        } catch (err) {
-            console.error('[LEADERBOARD_SETUP_ERROR]', err);
-
-            await setupMsg.edit({
-                content: 'Leaderboard paneli kurulurken bir hata oluştu.'
-            }).catch(() => {});
+        } catch (error) {
+            console.error('[LEADERBOARD_SETUP_ERROR]', error);
+            await setupMessage.edit({ content: 'Leaderboard panelleri kurulurken bir hata oluştu.' }).catch(() => null);
         }
     },
 };
