@@ -1,5 +1,6 @@
 const { PermissionsBitField: { Flags }, Events, ChannelType, bold } = require('discord.js');
 const Settings = require('../../../../Schema/Settings');
+const { formatPrivateRoomName } = require('../../../../Base/PrivateRoom');
 
 module.exports = async function Room(client, oldState, newState) {
     const document = await Settings.findOne({ id: oldState.guild.id });
@@ -68,7 +69,7 @@ module.exports = async function Room(client, oldState, newState) {
         });
 
         const newChannel = await newState.guild.channels.create({
-            name: `${member.user?.displayName}`,
+            name: formatPrivateRoomName(member.user?.displayName),
             type: ChannelType.GuildVoice,
             parent: newState.channel.parentId,
             permissionOverwrites: perms

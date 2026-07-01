@@ -2,6 +2,7 @@ const { PermissionsBitField: { Flags }, ActionRowBuilder, StringSelectMenuBuilde
 const ms = require('ms');
 const Punishment = require('../../../Schema/Punishment');
 const PunishmentCounter = require('../../../Schema/PunishmentCounter');
+const { sendTimeoutLog } = require('../../../Base/TimeoutLog');
 const timeouts = {
     '5m': 1000 * 60 * 5,
     '10m': 1000 * 60 * 10,
@@ -97,16 +98,13 @@ module.exports = {
                     components: [],
                 }).catch(() => null);
 
-                const logChannel = message.guild.channels.cache.find(x => x.name === 'mute-log');
-                if (logChannel) {
-                    logChannel.send({
-                        embeds: [
-                            embed.setDescription(
-                                `${member} kullanıcısı ${message.author} tarafından ${bold(ms(duration))} süresince susturuldu. (Ceza Numarası: #${caseId})`
-                            ),
-                        ],
-                    }).catch(() => null);
-                }
+                await sendTimeoutLog(message.guild, member, message.author, {
+                    source: 'Komut Üzeri (.mute)',
+                    duration,
+                    reason,
+                    caseId,
+                    expiresAt: new Date(Date.now() + duration),
+                });
 
                 collector.stop('done');
             } catch (error) {

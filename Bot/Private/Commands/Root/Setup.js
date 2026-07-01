@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType, PermissionFlagsBits, codeBlock, EmbedBuilder, bold } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType, PermissionFlagsBits, codeBlock, EmbedBuilder, bold, ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const SpamGuard = require('../../Events/messageCreate/Functions/Guard');
 
@@ -64,11 +64,12 @@ module.exports = {
                 .setPlaceholder('Rolleri Güncellemek İçin Tıkla!')
                 .setCustomId('roles')
                 .addOptions([
-                    { label: 'Ban Yetkilileri', value: 'banAuth_array', description: '(Ban)', emoji: wency.banAuth && wency.banAuth.length > 0 ? '✅' : '❌' },
+                    { label: 'Ban ve Jail Yetkilileri', value: 'banAuth_array', description: '(Ban, Jail)', emoji: wency.banAuth && wency.banAuth.length > 0 ? '✅' : '❌' },
                     { label: 'Mute Yetkilileri', value: 'timeOutAuth_array', description: '(Timeout)', emoji: wency.timeOutAuth && wency.timeOutAuth.length > 0 ? '✅' : '❌' },
                     { label: 'Diğer Yetkililer', value: 'auth_array', description: '(Referans, Nuke, Sil, Vip, Kilit, Say, Rol)', emoji: wency.auth && wency.auth.length > 0 ? '✅' : '❌' },
                     { label: 'GIF İzinli Rol', value: 'gifAuthRole_string', description: 'GIF göndermesine izin verilen rol.', emoji: wency.gifAuthRole ? '✅' : '❌' },
                     { label: 'Vip Rolü', value: 'vipRole_string', description: 'Vip rolü.', emoji: wency.vipRole ? '✅' : '❌' },
+                    { label: 'Jail Rolü', value: 'jailRole_string', description: 'Jail verilen kullanıcıya uygulanacak rol.', emoji: wency.jailRole ? '✅' : '❌' },
                     { label: 'Family Rolü', value: 'familyRole_string', description: 'Family rolü.', emoji: wency.familyRole ? '✅' : '❌' },
                     { label: 'Erkek Rolü', value: 'manRole_string', description: 'Erkek rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.manRole ? '✅' : '❌' },
                     { label: 'Kadın Rolü', value: 'womanRole_string', description: 'Kadın rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.womanRole ? '✅' : '❌' },
@@ -90,10 +91,7 @@ module.exports = {
                     { label: 'Özel Oda Kategorisi', value: 'secretRoomParent_category', description: 'Özel oda kategorisi.', emoji: wency.secretRoomParent ? '✅' : '❌' },
                 ]));
 
-        const question = await message.reply({
-            embeds: [setupEmbed],
-            components: [mainRow, systemRow, roleRow, channelRow],
-        });
+        const question = await message.reply(createSetupPanel(message, wency, [mainRow, systemRow, roleRow, channelRow]));
 
         const filter = (i) => i.user.id === message.author.id;
         const collector = question.createMessageComponentCollector({
@@ -274,27 +272,48 @@ async function logSetup(message) {
         { name: 'backup-log' },
         { name: 'ban-log' },
         { name: 'mute-log' },
+        { name: 'jail-log' },
         { name: 'mesaj-log' },
         { name: 'voice-log' },
-        { name: 'giriş-çıkış-log' },
+        { name: 'girenler' },
+        { name: 'çıkanlar' },
         { name: 'rol-log' },
+        { name: 'emoji-log' },
     ];
 
-    const logsCategory = await message.guild.channels.create({
-        name: `${message.guild.name} | Logs`,
-        type: ChannelType.GuildCategory,
-        position: 99,
-        permissionOverwrites: [
-            {
-                id: message.guild.roles.everyone,
-                deny: [PermissionFlagsBits.ViewChannel]
-            }
-        ]
-    });
+    const categoryName = `${message.guild.name} | Logs`;
+    let logsCategory = message.guild.channels.cache.find((channel) =>
+        channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === categoryName.toLowerCase()
+    );
+
+    if (!logsCategory) {
+        logsCategory = await message.guild.channels.create({
+            name: categoryName,
+            type: ChannelType.GuildCategory,
+            position: 99,
+            permissionOverwrites: [
+                {
+                    id: message.guild.roles.everyone,
+                    deny: [PermissionFlagsBits.ViewChannel]
+                }
+            ]
+        });
+    } else {
+        await logsCategory.permissionOverwrites.edit(message.guild.roles.everyone, {
+            ViewChannel: false
+        }).catch(() => null);
+    }
 
     for (const channel of channels) {
-        const logChannel = message.guild.channels.cache.find(c => c.name === channel.name);
-        if (logChannel) continue;
+        const logChannel = message.guild.channels.cache.find((item) =>
+            item.type === ChannelType.GuildText && item.name === channel.name
+        );
+        if (logChannel) {
+            if (logChannel.parentId !== logsCategory.id) {
+                await logChannel.setParent(logsCategory.id, { lockPermissions: false }).catch(() => null);
+            }
+            continue;
+        }
 
         await message.guild.channels.create({
             name: channel.name,
@@ -309,7 +328,7 @@ async function logSetup(message) {
         });
     }
 
-    message.reply({ content: 'Log kanalları başarıyla oluşturuldu.' });
+    message.reply({ content: 'Tüm log kanalları başarıyla kuruldu ve eksik kanallar tamamlandı.' });
 }
 
 async function refreshSetup(message, wency, botMessage) {
@@ -337,11 +356,12 @@ async function refreshSetup(message, wency, botMessage) {
             .setPlaceholder('Rolleri Güncellemek İçin Tıkla!')
             .setCustomId('roles')
             .addOptions([
-                { label: 'Ban Yetkilileri', value: 'banAuth_array', description: '(Ban)', emoji: wency.banAuth && wency.banAuth.length > 0 ? '✅' : '❌' },
+                { label: 'Ban ve Jail Yetkilileri', value: 'banAuth_array', description: '(Ban, Jail)', emoji: wency.banAuth && wency.banAuth.length > 0 ? '✅' : '❌' },
                 { label: 'Mute Yetkilileri', value: 'timeOutAuth_array', description: '(Timeout)', emoji: wency.timeOutAuth && wency.timeOutAuth.length > 0 ? '✅' : '❌' },
                 { label: 'Diğer Yetkililer', value: 'auth_array', description: '(Referans, Nuke, Sil, Vip, Kilit, Say, Rol)', emoji: wency.auth && wency.auth.length > 0 ? '✅' : '❌' },
                 { label: 'GIF İzinli Rol', value: 'gifAuthRole_string', description: 'GIF göndermesine izin verilen rol.', emoji: wency.gifAuthRole ? '✅' : '❌' },
                 { label: 'Vip Rolü', value: 'vipRole_string', description: 'Vip rolü.', emoji: wency.vipRole ? '✅' : '❌' },
+                { label: 'Jail Rolü', value: 'jailRole_string', description: 'Jail verilen kullanıcıya uygulanacak rol.', emoji: wency.jailRole ? '✅' : '❌' },
                 { label: 'Family Rolü', value: 'familyRole_string', description: 'Family rolü.', emoji: wency.familyRole ? '✅' : '❌' },
                 { label: 'Erkek Rolü', value: 'manRole_string', description: 'Erkek rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.manRole ? '✅' : '❌' },
                 { label: 'Kadın Rolü', value: 'womanRole_string', description: 'Kadın rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.womanRole ? '✅' : '❌' },
@@ -386,8 +406,42 @@ async function refreshSetup(message, wency, botMessage) {
         ].join('\n'),
     });
 
-    await botMessage.edit({ 
-        embeds: [embed],
-        components: [mainRow, systemRow, roleRow, channelRow],
-    });
+    await botMessage.edit(createSetupPanel(message, wency, [mainRow, systemRow, roleRow, channelRow]));
+}
+
+function createSetupPanel(message, wency, rows) {
+    const content = [
+        `# ${message.guild.name} Kurulum Paneli`,
+        '',
+        `${codeBlock('fix', '# Kurulum Seçenekleri')}`,
+        '• Rol Kurulumu : Sunucu rollerini otomatik oluşturur',
+        '• Emoji Kurulumu : Gerekli emojileri yükler',
+        '• Log Kurulumu : Tüm log kanallarını otomatik kurar',
+        '',
+        `${codeBlock('fix', '# Sistem Durumu')}`,
+        `${wency.autoRole ? '✅' : '❌'} Otomatik Rol : ${wency.autoRole ? 'Aktif' : 'Devre Dışı'}`,
+        `${wency.genderSystem ? '✅' : '❌'} Cinsiyet Sistemi : ${wency.genderSystem ? 'Aktif' : 'Devre Dışı'}`,
+        `${wency.linkGuard ? '✅' : '❌'} Link Engel : ${wency.linkGuard ? 'Aktif' : 'Devre Dışı'}`,
+        `${wency.spamGuard ? '✅' : '❌'} Spam Engel : ${wency.spamGuard ? 'Aktif' : 'Devre Dışı'}`,
+        `${wency.gifGuard ? '✅' : '❌'} Gif Engel : ${wency.gifGuard ? 'Aktif' : 'Devre Dışı'}`,
+        '',
+        `${codeBlock('fix', '# Sunucu İstatistikleri')}`,
+        `• Toplam Üye : ${message.guild.memberCount}`,
+        `• Toplam Rol : ${message.guild.roles.cache.size}`,
+        `• Toplam Kanal : ${message.guild.channels.cache.size}`,
+        '',
+        '-# Created By Wency',
+    ].join('\n');
+
+    const container = new ContainerBuilder()
+        .setAccentColor(0x5865f2)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+    rows.forEach((row) => container.addActionRowComponents(row));
+
+    return {
+        flags: MessageFlags.IsComponentsV2,
+        components: [container],
+    };
 }

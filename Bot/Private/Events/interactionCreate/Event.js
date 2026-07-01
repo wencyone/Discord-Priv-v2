@@ -1,6 +1,7 @@
 const { Events, ModalBuilder, ActionRowBuilder, TextInputStyle, TextInputBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder, EmbedBuilder, BaseInteraction, PermissionFlagsBits, bold, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const { handleGiveawayButton } = require('../../../Base/Giveaway');
+const { formatPrivateRoomName } = require('../../../Base/PrivateRoom');
 
 const inviteRegex = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discordapp\.com\/invite)\/([a-zA-Z0-9\-]{2,32})\b/;
 const adsRegex = /([^a-zA-ZIıİiÜüĞğŞşÖöÇç\s])+/gi;
@@ -211,10 +212,11 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                 if (channelName.match(inviteRegex)) return await modalCollected.reply({ content: 'Özel oda isminde link kullanamazsınız.', flags: 64 });
                 if (channelName.match(adsRegex)) return await modalCollected.reply({ content: 'Özel oda isminde reklam yapamazsınız.', flags: 64 });
 
-                await channel.setName(channelName).catch((err) => console.error())
+                const formattedChannelName = formatPrivateRoomName(channelName);
+                await channel.setName(formattedChannelName).catch((err) => console.error(err));
 
                 await modalCollected.reply({
-                    content: `Oda ismi başarıyla değiştirildi: ${bold(channelName)}`,
+                    content: `Oda ismi başarıyla değiştirildi: ${bold(formattedChannelName)}`,
                     flags: 64
                 }).catch(() => null);
             };

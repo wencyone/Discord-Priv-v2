@@ -8,6 +8,11 @@ const channelModel = require('../../Schema/ChannelModel')
 const { scheduleJob } = require('node-schedule');
 const { expressionBackup, roleBackup, channelBackup, createRole, createChannel, createExpression } = require('../Utils/Functions');
 const { connectBotToVoice } = require('../../Base/VoiceConnection');
+const guardCommands = [
+	require('./Commands/Guard/Whitelist'),
+	require('./Commands/Guard/Settings'),
+	require('./Commands/Guard/Audit')
+];
 require('colors');
 const client = new Client({
 	intents: Object.keys(GatewayIntentBits),
@@ -46,6 +51,11 @@ client.on(Events.MessageCreate, async (message) => {
 		const args = message.content.slice(1).trim().split(/ +/g);
 		const cmd = args.shift().toLowerCase();
 		if (!cmd) return;
+		const guardCommand = guardCommands.find((command) => command.name === cmd || command.aliases?.includes(cmd));
+		if (guardCommand) {
+			await guardCommand.execute(client, message, args);
+			return;
+		}
 
 		if (cmd === 'wl') {
 			if (!['ekle', 'çıkar', 'liste'].some(x => args[0] == x)) return message.reply({ content: `Lütfen geçerli bir işlem belirtin. \`ekle\`, \`çıkar\`, \`liste\`` })

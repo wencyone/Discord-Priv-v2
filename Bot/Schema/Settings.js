@@ -35,6 +35,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     womanRole: { type: String, default: '' },
     familyRole: { type: String, default: '' }, 
     vipRole: { type: String, default: '' },
+    jailRole: { type: String, default: '' },
 
     banAuth: { type: [String], default: [] },
     timeOutAuth: { type: [String], default: [] },

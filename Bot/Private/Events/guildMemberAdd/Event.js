@@ -1,10 +1,14 @@
 const { Events } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
+const Punishment = require('../../../Schema/Punishment');
+const { releaseJail } = require('../../../Base/Jail');
+const { createMemberLog } = require('../../../Base/MemberLog');
 
 client.on(Events.GuildMemberAdd, async (member) => {
 
-    const channel = member.guild.channels.cache.find(r => r.name === 'giriş-çıkış-log');
-    if (channel) channel.send({ content: `<:success2_argenx:1515149838273220608> ${member} (${member.id}) sunucuya giriş yaptı.` }).catch(() => null);
+    const channel = member.guild.channels.cache.find((item) => item.name === 'girenler')
+        || member.guild.channels.cache.find((item) => item.name === 'giriş-çıkış-log');
+    if (channel?.isTextBased()) channel.send(createMemberLog(member, true)).catch(() => null);
 
     const document = await Settings.findOne({ id: member.guild.id });
     if (!document) return;
@@ -28,6 +32,27 @@ client.on(Events.GuildMemberAdd, async (member) => {
             mentionChannel.send({ content: `${member}` })
                 .then((msg) => setTimeout(() => msg.delete().catch(() => {}), 2000))
                 .catch(() => {});
+        }
+    }
+
+    const activeJail = await Punishment.findOne({
+        guildId: member.guild.id,
+        userId: member.id,
+        type: 'jail',
+        active: true
+    }).sort({ caseId: -1 }).catch(() => null);
+
+    if (activeJail) {
+        if (activeJail.expiresAt && activeJail.expiresAt.getTime() <= Date.now()) {
+            await releaseJail(client, activeJail, true).catch((error) => console.error('[JAIL_REJOIN_RELEASE]', error));
+            return;
+        }
+
+        const jailRole = member.guild.roles.cache.get(document.jailRole);
+        if (jailRole && jailRole.position < member.guild.members.me.roles.highest.position) {
+            await member.roles.set([jailRole.id], 'Aktif jail cezası devam ederken sunucuya tekrar katıldı.').catch((error) => console.error('[JAIL_REJOIN_ROLE]', error));
+            await member.send({ content: 'Jailliyken sunucudan çıktığınız için tekrar jaile atıldınız.' }).catch(() => null);
+            return;
         }
     }
 

@@ -1,7 +1,9 @@
 const { Events } = require('discord.js');
+const { createMemberLog } = require('../../../Base/MemberLog');
 
 client.on(Events.GuildMemberRemove, async (member) => {
 
-    const channel = member.guild.channels.cache.find(r => r.name === 'giriş-çıkış-log');
-    if (channel) channel.send({ content: `<:redtick:1515149883701592186> ${member} (${member.id}) sunucudan ayrıldı.` })
+    const channel = member.guild.channels.cache.find((item) => item.name === 'çıkanlar')
+        || member.guild.channels.cache.find((item) => item.name === 'giriş-çıkış-log');
+    if (channel?.isTextBased()) channel.send(createMemberLog(member, false)).catch(() => null);
 })
