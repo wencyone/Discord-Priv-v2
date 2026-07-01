@@ -1,4 +1,14 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
+const {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ContainerBuilder,
+    MessageFlags,
+    PermissionsBitField,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
+    TextDisplayBuilder,
+} = require('discord.js');
 
 module.exports = {
     name: 'room',
@@ -25,73 +35,82 @@ module.exports = {
             new ButtonBuilder()
                 .setCustomId('changeName')
                 .setEmoji(eChange)
+                .setLabel('İsim Değiştir')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('changeLimit')
                 .setEmoji(eLimit)
+                .setLabel('Limit Ayarla')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('roomInfo')
                 .setEmoji(eInfo)
+                .setLabel('Oda Bilgisi')
                 .setStyle(ButtonStyle.Secondary),
             ),
             new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('lockOrUnlock')
                 .setEmoji(eLock)
+                .setLabel('Kilitle / Aç')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('addOrRemove')
                 .setEmoji(eMember)
+                .setLabel('Üye İzni')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('denyMember')
                 .setEmoji(eDeny)
+                .setLabel('Üyeyi Yasakla')
                 .setStyle(ButtonStyle.Secondary),
             ),
             new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('visibleOrInvisible')
                 .setEmoji(eVisible)
+                .setLabel('Görünürlük')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('transferOwner')
                 .setEmoji(eCrown)
+                .setLabel('Devret')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('deleteRoom')
                 .setEmoji(eTrash)
-                .setStyle(ButtonStyle.Secondary),
+                .setLabel('Odayı Sil')
+                .setStyle(ButtonStyle.Danger),
             ),
         ];
 
+        const container = new ContainerBuilder()
+            .setAccentColor(0xe91e63)
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+                `# ‪‪❤︎‬ ${message.guild.name} Özel Oda Paneli`,
+                'Kendine ait ses odanı oluşturabilir ve tüm ayarlarını bu panelden yönetebilirsin.',
+            ].join('\n')))
+            .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+                '## 🎧 Özel Oda Oluşturma',
+                `${wency.secretRoomChannel ? `<#${wency.secretRoomChannel}>` : '**Özel Oda Oluştur**'} kanalına katıldığında odan otomatik oluşturulur.`,
+                'Odanın adı `‪‪❤︎‬ {isim}` formatında açılır.',
+            ].join('\n')))
+            .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+                '## ⚙️ Oda Yönetimi',
+                '• İsim, limit ve oda bilgilerini güncelle.',
+                '• Odayı kilitle, üyelere izin ver veya girişlerini yasakla.',
+                '• Görünürlüğü ayarla, sahipliği devret veya odayı sil.',
+            ].join('\n')))
+            .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+        rows.forEach((row) => container.addActionRowComponents(row));
+
         return message.channel.send({
-            content: [
-                'Merhaba **H A C I Z A D E** üyeleri,',
-                'Sunucumuzda kalabalık odalar yerine kendinize özel bir ses kanalı oluşturabilirsiniz! 🔥',
-                '',
-                '**Kendinize özel bir ses kanalı oluşturmak için:**',
-                `> 🔊 ${wency.secretRoomChannel ? `<#${wency.secretRoomChannel}>` : '**Özel Oda Oluştur!**'} ses kanalına giriş yaparak kendi ses kanalınızı oluşturabilirsiniz.`,
-                '> Kanalınızı oluşturduktan sonra aşağıdaki butonları kullanarak odanızı kolayca yönetebilirsiniz!',
-                '',
-                '**Odanızı Güncelleyin:**',
-                '> ✏️ Bu butonu kullanarak oda **isminizi** güncelleyebilirsiniz!',
-                '> 🔢 Bu butonu kullanarak oda **limitinizi** güncelleyebilirsiniz!',
-                '> 📋 Bu butonu kullanarak oda **bilgilerinizi** (sahip, limit, durum, sestekiler, izinliler, yasaklılar) görüntüleyebilirsiniz!',
-                '',
-                '**Odanızın Erişimini Kontrol Edin:**',
-                '> 🔒 Bu butonu kullanarak odanızı **dışarıya kapatabilir/açabilirsiniz!**',
-                '> 👥 Bu butonu kullanarak seçtiğiniz kullanıcıların odaya **girişini açabilirsiniz!**',
-                '> 🔕 Bu butonu kullanarak seçtiğiniz kullanıcıların odaya **girişini yasaklayabilirsiniz!**',
-                '',
-                '**Diğer Oda Ayarları:**',
-                '> 👁️ Bu butonu kullanarak odanızı **görünmez/görünür** olarak güncelleyebilirsiniz!',
-                '> 👑 Bu butonu kullanarak oda sahipliğini başka bir kullanıcıya **devredebilirsiniz!**',
-                '> 🗑️ Bu butonu kullanarak odanızı **silebilirsiniz!**',
-                '',
-                '**Keyifli sohbetler dileriz.**',
-            ].join('\n'),
-            components: rows,
+            flags: MessageFlags.IsComponentsV2,
+            components: [container],
+            allowedMentions: { parse: [], users: [], roles: [] },
         });
     },
 };
