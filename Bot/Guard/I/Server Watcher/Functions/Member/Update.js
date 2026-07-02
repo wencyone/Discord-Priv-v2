@@ -1,4 +1,4 @@
-const { EmbedBuilder, codeBlock } = require('discord.js');
+const { EmbedBuilder, codeBlock, PermissionsBitField: { Flags } } = require('discord.js');
 const { checkWhitelist, date } = require('../../../../Utils/Functions.js');
 
 const times = {
@@ -8,6 +8,7 @@ const times = {
 };
 
 module.exports = async function memberUpdate(client, guild, audit, member, changes) {
+  if (isPrivateRoomVoiceModeration(guild, audit, member, changes)) return;
   const logChannel = guild.channels.cache.find(c => c.name === 'guard-log') || client.users.cache.get(guild.ownerId);
   const safeMode = await checkWhitelist(client, member, 'memberUpdate');
   const logDetails = { old: [], new: [] };
@@ -52,3 +53,13 @@ module.exports = async function memberUpdate(client, guild, audit, member, chang
     ]
   })
 };
+
+function isPrivateRoomVoiceModeration(guild, audit, member, changes) {
+  if (!changes.some((change) => change.key === 'mute' || change.key === 'deaf')) return false;
+  const channel = member.voice?.channel;
+  const target = guild.members.cache.get(audit.targetId);
+  if (!channel || target?.voice?.channelId !== channel.id) return false;
+  const overwrite = channel.permissionOverwrites.cache.get(member.id);
+  return [Flags.MoveMembers, Flags.MuteMembers, Flags.DeafenMembers]
+    .every((permission) => overwrite?.allow.has(permission));
+}

@@ -2,6 +2,8 @@ const { PermissionsBitField: { Flags }, Events, ChannelType, bold } = require('d
 const Settings = require('../../../../Schema/Settings');
 const { formatPrivateRoomName } = require('../../../../Base/PrivateRoom');
 
+const VOICE_RESTRICTION_RELEASE_DELAY = 5000;
+
 module.exports = async function Room(client, oldState, newState) {
     const document = await Settings.findOne({ id: oldState.guild.id });
     if (!document) return;
@@ -11,6 +13,28 @@ module.exports = async function Room(client, oldState, newState) {
 
     const member = newState.guild.members.cache.get(newState.id);
     const roomControl = (document?.privateRooms || []).find(x => x.owner === member?.id);
+    const oldRoom = (document?.privateRooms || []).find(x => x.channel === oldState.channelId);
+    const newRoom = (document?.privateRooms || []).find(x => x.channel === newState.channelId);
+
+    if (oldRoom && oldState.channelId === newState.channelId
+        && (oldState.serverMute !== newState.serverMute || oldState.serverDeaf !== newState.serverDeaf)) {
+        await saveVoiceRestriction(member.guild.id, oldRoom, member.id, newState.serverMute, newState.serverDeaf);
+    }
+
+    if (oldRoom && oldState.channelId !== newState.channelId) {
+        const restriction = getVoiceRestriction(oldRoom, member.id);
+        if (restriction) scheduleRestrictionRelease(member.guild, oldRoom.channel, member.id, restriction);
+    }
+
+    if (newRoom && oldState.channelId !== newState.channelId) {
+        const restriction = getVoiceRestriction(newRoom, member.id);
+        if (restriction?.mute && !newState.serverMute) await member.voice.setMute(true, 'Özel oda susturma kaydı').catch(() => null);
+        if (restriction?.deaf && !newState.serverDeaf) await member.voice.setDeaf(true, 'Özel oda sağırlaştırma kaydı').catch(() => null);
+    }
+
+    if (newRoom?.owner === member.id) {
+        await grantRoomOwnerVoicePermissions(newState.channel, member.id);
+    }
 
     if (newState.channelId === document?.secretRoomChannel) {
         if (roomControl) {
@@ -62,6 +86,9 @@ module.exports = async function Room(client, oldState, newState) {
                 Flags.Stream,
                 Flags.Speak,
                 Flags.ViewChannel,
+                Flags.MoveMembers,
+                Flags.MuteMembers,
+                Flags.DeafenMembers,
             ],
             deny: [
                 Flags.SendMessages
@@ -136,4 +163,49 @@ module.exports = async function Room(client, oldState, newState) {
             await Settings.updateOne({ id: member.guild.id }, { $pull: { privateRooms: { owner: member.id } } });
         }
     }
+}
+
+function getVoiceRestriction(room, userId) {
+    return (room?.voiceRestrictions || []).find((restriction) => restriction.userId === userId) || null;
+}
+
+async function saveVoiceRestriction(guildId, room, userId, mute, deaf) {
+    const restrictions = [...(room.voiceRestrictions || [])].filter((restriction) => restriction.userId !== userId);
+    if (mute || deaf) restrictions.push({ userId, mute: Boolean(mute), deaf: Boolean(deaf) });
+    room.voiceRestrictions = restrictions;
+    await Settings.updateOne(
+        { id: guildId, 'privateRooms.channel': room.channel },
+        { $set: { 'privateRooms.$.voiceRestrictions': restrictions } }
+    );
+}
+
+function scheduleRestrictionRelease(guild, roomId, userId, restriction) {
+    setTimeout(async () => {
+        const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+        if (!member?.voice) return;
+
+        const document = await Settings.findOne({ id: guild.id }).lean().catch(() => null);
+        const currentRoom = (document?.privateRooms || []).find((room) => room.channel === member.voice.channelId);
+        const currentRestriction = getVoiceRestriction(currentRoom, userId);
+        if (member.voice.channelId === roomId) return;
+
+        if (restriction.mute && !currentRestriction?.mute && member.voice.serverMute) {
+            await member.voice.setMute(false, 'Özel odadan ayrıldığı için susturma kaldırıldı').catch(() => null);
+        }
+        if (restriction.deaf && !currentRestriction?.deaf && member.voice.serverDeaf) {
+            await member.voice.setDeaf(false, 'Özel odadan ayrıldığı için sağırlaştırma kaldırıldı').catch(() => null);
+        }
+    }, VOICE_RESTRICTION_RELEASE_DELAY);
+}
+
+async function grantRoomOwnerVoicePermissions(channel, ownerId) {
+    if (!channel) return;
+    const overwrite = channel.permissionOverwrites.cache.get(ownerId);
+    const required = [Flags.MoveMembers, Flags.MuteMembers, Flags.DeafenMembers];
+    if (required.every((permission) => overwrite?.allow.has(permission))) return;
+    await channel.permissionOverwrites.edit(ownerId, {
+        [Flags.MoveMembers]: true,
+        [Flags.MuteMembers]: true,
+        [Flags.DeafenMembers]: true,
+    }, { reason: 'Özel oda sahibi ses yönetim izinleri' }).catch(() => null);
 }

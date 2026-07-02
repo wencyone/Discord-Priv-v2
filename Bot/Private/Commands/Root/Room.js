@@ -101,6 +101,8 @@ module.exports = {
                 '## ⚙️ Oda Yönetimi',
                 '• İsim, limit ve oda bilgilerini güncelle.',
                 '• Odayı kilitle, üyelere izin ver veya girişlerini yasakla.',
+                '• Oda sahibi yalnız kendi odasında üyeleri susturabilir, sağırlaştırabilir veya bağlantılarını kesebilir.',
+                '• Odadan ayrılan üyenin ses kısıtlaması 5 saniye sonra kaldırılır; aynı odaya dönerse yeniden uygulanır.',
                 '• Oda görünürlüğünü yalnızca aktif booster üyeler değiştirebilir.',
                 '• Sahipliği devret veya odanı tamamen sil.',
             ].join('\n')))

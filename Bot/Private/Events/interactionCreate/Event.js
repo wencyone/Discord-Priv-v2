@@ -652,11 +652,19 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                     { id: member.guild.id, 'privateRooms.channel': channel.id },
                     { $set: { 'privateRooms.$.owner': selectedMember.id } }
                 );
+                await channel.permissionOverwrites.edit(member.id, {
+                    [PermissionFlagsBits.MoveMembers]: null,
+                    [PermissionFlagsBits.MuteMembers]: null,
+                    [PermissionFlagsBits.DeafenMembers]: null
+                }).catch(() => null);
                 await channel.permissionOverwrites.edit(selectedMember.id, {
                     [PermissionFlagsBits.Connect]: true,
                     [PermissionFlagsBits.Stream]: true,
                     [PermissionFlagsBits.Speak]: true,
-                    [PermissionFlagsBits.ViewChannel]: true
+                    [PermissionFlagsBits.ViewChannel]: true,
+                    [PermissionFlagsBits.MoveMembers]: true,
+                    [PermissionFlagsBits.MuteMembers]: true,
+                    [PermissionFlagsBits.DeafenMembers]: true
                 }).catch(() => null);
 
                 await x.update({ content: `Oda sahipliği ${selectedMember} kullanıcısına devredildi.`, components: [] }).catch(() => null);
