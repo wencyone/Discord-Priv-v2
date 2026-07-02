@@ -99,12 +99,16 @@ module.exports = {
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
             .addTextDisplayComponents(new TextDisplayBuilder().setContent([
                 '## ⚙️ Oda Yönetimi',
-                '• İsim, limit ve oda bilgilerini güncelle.',
-                '• Odayı kilitle, üyelere izin ver veya girişlerini yasakla.',
-                '• Oda sahibi yalnız kendi odasında üyeleri susturabilir, sağırlaştırabilir veya bağlantılarını kesebilir.',
-                '• Odadan ayrılan üyenin ses kısıtlaması 5 saniye sonra kaldırılır; aynı odaya dönerse yeniden uygulanır.',
-                '• Oda görünürlüğünü yalnızca aktif booster üyeler değiştirebilir.',
-                '• Sahipliği devret veya odanı tamamen sil.',
+                `${displayEmoji(eChange, 'wencyChange', '✏️')} **İsim Değiştir** — odanın ismini günceller.`,
+                `${displayEmoji(eLimit, 'wencyLimit', '👥')} **Limit Ayarla** — odanın kullanıcı limitini değiştirir.`,
+                `${displayEmoji(eInfo, 'wencyInfo', '📋')} **Oda Bilgisi** — oda ayarlarını ve izinlerini gösterir.`,
+                `${displayEmoji(eLock, 'wencyLock', '🔒')} **Kilitle / Aç** — odanın bağlantı iznini yönetir.`,
+                `${displayEmoji(eMember, 'wencyMember', '🧩')} **Üye İzni** — seçtiğin kullanıcıların odaya girişini açar veya kaldırır.`,
+                `${displayEmoji(eDeny, 'wencyDeny', '🔕')} **Üyeyi Yasakla** — seçtiğin kullanıcının odaya girişini engeller.`,
+                `${displayEmoji(eVisible, 'wencyVisible', '👁️')} **Görünürlük** — yalnız booster üyeler odanın görünürlüğünü değiştirebilir.`,
+                `${displayEmoji(eCrown, 'wencyCrown', '👑')} **Devret** — oda sahipliğini seçtiğin üyeye aktarır.`,
+                `${displayEmoji(eTrash, 'wencyTrash', '🗑️')} **Odayı Sil** — özel odanı tamamen kaldırır.`,
+                '-# Oda sahibinin uyguladığı ses kısıtlamaları, üye odadan ayrıldıktan 5 saniye sonra kaldırılır.',
             ].join('\n')))
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
@@ -120,4 +124,8 @@ module.exports = {
 
 function findEmoji(client, name) {
     return client.emojis.cache.find((emoji) => emoji.name === name)?.id || null;
+}
+
+function displayEmoji(emoji, name, fallback) {
+    return /^\d+$/.test(emoji) ? `<:${name}:${emoji}>` : fallback;
 }
