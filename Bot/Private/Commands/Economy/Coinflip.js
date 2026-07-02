@@ -4,7 +4,7 @@ const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../
 
 module.exports = {
     name: 'coinflip',
-    aliases: ['cf', 'yazıtura'],
+    aliases: ['cf', 'yazıtura', 'yazitura'],
     category: 'Fun',
 
     execute: async (client, message, args) => {

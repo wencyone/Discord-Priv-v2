@@ -5,6 +5,7 @@ const { startLeaderboardInterval, updateLeaderboard } = require('../Base/Leaderb
 const { connectBotToVoice } = require('../Base/VoiceConnection');
 const { startGiveawayScheduler } = require('../Base/Giveaway');
 const { startJailScheduler } = require('../Base/Jail');
+const { startBoosterRoleScheduler } = require('../Base/BoosterRole');
 
 const client = global.client = new Client({ intents: Object.keys(GatewayIntentBits), partials: Object.keys(Partials) });
 const system = global.system = require('../../System');
@@ -51,6 +52,7 @@ client.on(Events.ClientReady, async () => {
 
     startGiveawayScheduler(client);
     startJailScheduler(client);
+    startBoosterRoleScheduler(client);
 
     await connectBotToVoice(client, guild, system.channelID, 'Private');
 

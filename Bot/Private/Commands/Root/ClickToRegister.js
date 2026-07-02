@@ -1,6 +1,6 @@
 module.exports = {
     name: 'kayıtpanel',
-    aliases: [],
+    aliases: ['kayitpanel'],
     category: 'Root',
 
     execute: async (client, message) => {

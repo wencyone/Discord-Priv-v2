@@ -1,86 +1,114 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, PermissionsBitField } = require('discord.js');
+const {
+    ActionRowBuilder,
+    ContainerBuilder,
+    MessageFlags,
+    PermissionsBitField,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
+    StringSelectMenuBuilder,
+    TextDisplayBuilder,
+} = require('discord.js');
+
+const categories = {
+    General: { label: 'Kullanıcı Komutları', description: 'Genel kullanıcı komutlarını gösterir.', emoji: '👤' },
+    Auth: { label: 'Yetkili Komutları', description: 'Yetkili ve yönetim komutlarını gösterir.', emoji: '🛡️' },
+    Economy: { label: 'Ekonomi Komutları', description: 'Ekonomi komutlarını gösterir.', emoji: '💰' },
+    Fun: { label: 'Eğlence Komutları', description: 'Eğlence komutlarını gösterir.', emoji: '🎮' },
+    Stat: { label: 'İstatistik Komutları', description: 'Sunucu istatistik komutlarını gösterir.', emoji: '📊' },
+    Root: { label: 'Kurucu Komutları', description: 'Kurucu ve sistem komutlarını gösterir.', emoji: '⚙️' },
+};
+
+function createMenu(customId, selected, disabled = false) {
+    return new StringSelectMenuBuilder()
+        .setCustomId(customId)
+        .setPlaceholder('Bir komut kategorisi seçin...')
+        .setDisabled(disabled)
+        .addOptions(Object.entries(categories).map(([value, category]) => ({
+            label: category.label,
+            description: category.description,
+            emoji: category.emoji,
+            value,
+            default: value === selected,
+        })));
+}
+
+function createPanel(client, customId, selected, disabled = false) {
+    const category = selected ? categories[selected] : null;
+    const commands = selected ? client.commands.filter((command) => command.category === selected) : null;
+    const container = new ContainerBuilder()
+        .setAccentColor(0x5865f2)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+            `# 📚 ${client.user.username} Komut Menüsü`,
+            `Sunucuda kullanabileceğiniz toplam **${client.commands.size}** komut bulunuyor.`,
+            'Detaylarını görmek istediğiniz kategoriyi aşağıdaki menüden seçin.',
+        ].join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+    if (category) {
+        container
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+                `## ${category.emoji} ${category.label}`,
+                commands.size
+                    ? commands.map((command) => `\`.${command.name}\``).join('  ')
+                    : 'Bu kategoride görüntülenecek komut bulunmuyor.',
+                `-# Bu kategoride ${commands.size} komut bulunuyor.`,
+            ].join('\n')))
+            .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    } else {
+        container
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent('Bir komutun ayrıntısını doğrudan görmek için `.help <komut>` kullanabilirsiniz.'))
+            .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    }
+
+    return container.addActionRowComponents(new ActionRowBuilder().addComponents(createMenu(customId, selected, disabled)));
+}
 
 module.exports = {
     name: 'yardım',
-    aliases: ['help', 'komutlar'],
+    aliases: ['help', 'yardim', 'komutlar'],
     category: 'General',
 
     execute: async (client, message, args, wency) => {
         const channel = message.guild.channels.cache.get(wency.botCommandChannel);
         if (message.channel.name !== channel?.name && !message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-             return message.reply({ content: `Bu komut sadece ${channel} kanalında kullanılabilir.` });
-            
-        var command = args[0]
-        if (client.commands.has(command)) {
-            command = client.commands.get(command)
-            const embed = new EmbedBuilder().setAuthor({
-                name: `${client.user.username} | Komut Bilgisi`,
-                iconURL: client.user.displayAvatarURL({ dynamic: true })
-            }).setDescription(`Belirttiğin komuta ait bilgiler aşağıda verilmiştir!
-    
-                **\` • \`** Komut Adı: **${command.name}**
-                **\` • \`** Komut Alternatifleri: **${command.aliases?.length ? command.aliases.join(', ') : `Alternatif bulunmuyor!`}**,
-                **\` • \`** Komut Kategorisi: **${command.category}**   
-                }**`)
-            return message.reply({ embeds: [embed] })
+            return message.reply({ content: `Bu komut sadece ${channel} kanalında kullanılabilir.` });
+
+        const query = args[0]?.toLocaleLowerCase('tr-TR');
+        const command = query
+            ? client.commands.get(query) || client.commands.find((item) => item.aliases?.includes(query))
+            : null;
+
+        if (command) {
+            const aliases = command.aliases?.length ? command.aliases.map((alias) => `\`.${alias}\``).join(', ') : 'Bulunmuyor';
+            const container = new ContainerBuilder()
+                .setAccentColor(0x5865f2)
+                .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+                    '# 📖 Komut Bilgisi',
+                    `**Komut:** \`.${command.name}\``,
+                    `**Alternatifler:** ${aliases}`,
+                    `**Kategori:** ${categories[command.category]?.label || command.category}`,
+                ].join('\n')));
+
+            return message.reply({ flags: MessageFlags.IsComponentsV2, components: [container] });
         }
 
-        const embed = new EmbedBuilder({
-            thumbnail: { url: message.guild.iconURL({ dynamic: true }) },
-            author: { name: `${client.user.username} | Komut Bilgisi`, iconURL: client.user.displayAvatarURL({ dynamic: true }) },
-            description: `Sunucuda kullanabileceğiniz komutlar aşağıda listelenmiştir. Toplamda **${client.commands.size}** adet komut bulunmaktadır. \n\nBir komut hakkında daha fazla bilgi almak için\n**.yardım <komut>** komutunu kullanabilirsiniz.`,
-        })
-        
-        const row = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('help')
-                .setPlaceholder('Bir kategori seçin...')
-                .addOptions([
-                    {
-                        label: 'Kullanıcı Komutları',
-                        description: 'Sunucu içerisindeki kullanıcı komutlarını gösterir.',
-                        value: 'General'
-                    },
-                    {
-                        label: 'Yetkili Komutları',
-                        description: 'Sunucu içerisindeki yetkili ve yönetim komutlarını gösterir.',
-                        value: 'Auth'
-                    },
-                    {
-                        label: 'Ekonomi Komutları',
-                        description: 'Sunucu içerisindeki ekonomi komutlarını gösterir.',
-                        value: 'Economy'
-                    },
-                    {
-                        label: 'Eğlence Komutları',
-                        description: 'Sunucu içerisindeki eğlence komutlarını gösterir.',
-                        value: 'Fun'
-                    },
-                    {
-                        label: 'Kurucu Komutları',
-                        description: 'Sunucu içerisindeki kurucu komutlarını gösterir.',
-                        value: 'Root'
-                    }
-                ])
-        )
+        const customId = `help-category:${message.author.id}`;
+        const question = await message.channel.send({
+            flags: MessageFlags.IsComponentsV2,
+            components: [createPanel(client, customId)],
+        });
+        const collector = question.createMessageComponentCollector({
+            filter: (interaction) => interaction.user.id === message.author.id && interaction.customId === customId,
+            time: 60000,
+        });
 
-        const question = await message.channel.send({ embeds: [embed], components: [row] })
-        const filter = (i) => i.user.id === message.author.id
-        const collector = question.createMessageComponentCollector({ filter, time: 30 * 1000 })
+        collector.on('collect', async (interaction) => {
+            const selected = interaction.values[0];
+            await interaction.update({ components: [createPanel(client, customId, selected)] });
+        });
 
-        collector.on('collect', async (i) => {
-            i.deferUpdate();
-            if (i.customId === 'help') {
-                const category = i.values[0]
-                const commands = client.commands.filter((x) => x.category === category)
-                const embed = new EmbedBuilder({
-                    thumbnail: { url: message.guild.iconURL({ dynamic: true }) },
-                    author: { name: `${client.user.username} | ${category} Komutları`, iconURL: client.user.displayAvatarURL({ dynamic: true }) },
-                    description: `**${category}** kategorisine ait komutlar aşağıda listelenmiştir.\n\n${commands.map((x) => `**\` • \`** ${x.name}`).join('\n')}`
-                })
-
-                await question.edit({ embeds: [embed], components: [row] })
-            }
+        collector.on('end', async () => {
+            await question.edit({ components: [createPanel(client, customId, null, true)] }).catch(() => null);
         });
     }
-}
+};

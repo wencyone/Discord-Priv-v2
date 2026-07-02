@@ -4,7 +4,7 @@ const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../
 
 module.exports = {
     name: 'günlük',
-    aliases: ['daily', 'gunluk', 'günlükpara', 'dailycoin'],
+    aliases: ['daily', 'gunluk', 'günlükpara', 'gunlukpara', 'dailycoin'],
     category: 'Fun',
 
     execute: async (client, message) => {

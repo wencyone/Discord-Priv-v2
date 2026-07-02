@@ -3,7 +3,7 @@ const UserModel = require('../../../Schema/User')
 
 module.exports = {
     name: 'boşan',
-    aliases: ['divorce'],
+    aliases: ['divorce', 'bosan'],
     category: 'Economy',
 
     execute: async (client, message, args, wency, embed) => {

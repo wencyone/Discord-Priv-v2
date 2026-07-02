@@ -3,7 +3,7 @@ const CanvasUtil = require('../../../Base/CanvasUtil');
 
 module.exports = {
     name: 'taskagıtmakas',
-    aliases: ['tkm', 'taş-kağıt-makas', 'tas-kagit-makas'],
+    aliases: ['tkm', 'taş-kağıt-makas', 'tas-kagit-makas', 'taşkağıtmakas', 'taskagitmakas'],
     category: 'Fun',
 
     execute: async (client, message) => {

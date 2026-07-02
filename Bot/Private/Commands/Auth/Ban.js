@@ -4,7 +4,7 @@ const PunishmentCounter = require('../../../Schema/PunishmentCounter');
 
 module.exports = {
     name: 'ban',
-    aliases: ['ban', 'sg', 'yargı'],
+    aliases: ['ban', 'sg', 'yargı', 'yargi'],
     category: 'Auth',
 
     execute: async (client, message, args, wency) => {

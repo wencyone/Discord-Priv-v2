@@ -364,6 +364,13 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
         }
 
         if (i.customId === 'visibleOrInvisible') {
+            if (!member.premiumSinceTimestamp && !member.premiumSince) {
+                return await i.reply({
+                    content: 'Oda görünürlüğünü yalnızca aktif boost basan üyeler değiştirebilir.',
+                    flags: 64
+                }).catch(() => null);
+            }
+
             if (!member.voice.channel) return await i.reply({
                 embeds: [
                     new EmbedBuilder({

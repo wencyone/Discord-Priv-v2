@@ -1,0 +1,276 @@
+const {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    Constants,
+    ContainerBuilder,
+    MessageFlags,
+    ModalBuilder,
+    StringSelectMenuBuilder,
+    TextDisplayBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    UserSelectMenuBuilder,
+} = require('discord.js');
+const BoosterRole = require('../Schema/BoosterRole');
+
+const SHARE_LIMIT = 15;
+const SUSPEND_TIME = 3 * 24 * 60 * 60 * 1000;
+const SPECIAL_ROLES_ANCHOR = '⸻Special Roles⸻';
+
+function isBooster(member) {
+    return Boolean(member?.premiumSinceTimestamp || member?.premiumSince);
+}
+
+function findSpecialRolesAnchor(guild) {
+    return guild.roles.cache
+        .filter((role) => role.name === SPECIAL_ROLES_ANCHOR)
+        .sort((a, b) => b.position - a.position)
+        .first() || null;
+}
+
+async function getOwnedRole(interaction, requireBoost = true) {
+    if (requireBoost && !isBooster(interaction.member)) {
+        await interaction.reply({ content: 'Bu sistemi yalnızca aktif boost basan üyeler kullanabilir.', flags: 64 }).catch(() => null);
+        return null;
+    }
+
+    const document = await BoosterRole.findOne({ guildId: interaction.guild.id, ownerId: interaction.user.id });
+    if (!document) {
+        await interaction.reply({ content: 'Önce kendine ait bir booster rolü oluşturmalısın.', flags: 64 }).catch(() => null);
+        return null;
+    }
+    const role = interaction.guild.roles.cache.get(document.roleId) || await interaction.guild.roles.fetch(document.roleId).catch(() => null);
+    if (!role) {
+        await BoosterRole.deleteOne({ _id: document._id });
+        await interaction.reply({ content: 'Booster rolün sunucuda bulunamadı. Yeniden oluşturabilirsin.', flags: 64 }).catch(() => null);
+        return null;
+    }
+    return { document, role };
+}
+
+async function handleBoosterRoleInteraction(client, interaction) {
+    if (!interaction.inGuild() || !interaction.customId.startsWith('booster-role:')) return false;
+    const action = interaction.customId.split(':')[1];
+
+    if (action === 'create') await createRole(interaction);
+    if (action === 'edit') await editRole(interaction);
+    if (action === 'color') await showColorMenu(interaction);
+    if (action === 'color-select') await applyColor(interaction);
+    if (action === 'share') await showShareMenu(interaction);
+    if (action === 'share-select') await applySharing(interaction);
+    if (action === 'delete') await showDeleteConfirmation(interaction);
+    if (action === 'delete-confirm') await deleteOwnedRole(interaction);
+    if (action === 'delete-cancel') await interaction.update(ephemeralPanel(['❌ **Silme İşlemi İptal Edildi**']));
+    return true;
+}
+
+async function createRole(interaction) {
+    if (!isBooster(interaction.member)) return interaction.reply({ content: 'Bu sistemi yalnızca aktif boost basan üyeler kullanabilir.', flags: 64 });
+    const existing = await BoosterRole.findOne({ guildId: interaction.guild.id, ownerId: interaction.user.id });
+    if (existing) return interaction.reply({ content: 'Zaten kendine ait bir booster rolün bulunuyor.', flags: 64 });
+
+    const anchor = findSpecialRolesAnchor(interaction.guild);
+    const botRole = interaction.guild.members.me.roles.highest;
+    if (!anchor) return interaction.reply({ content: `\`${SPECIAL_ROLES_ANCHOR}\` ayırıcı rolü bulunamadı.`, flags: 64 });
+    if (anchor.position >= botRole.position) return interaction.reply({ content: `Bot rolü \`${SPECIAL_ROLES_ANCHOR}\` rolünün üstünde olmalı.`, flags: 64 });
+
+    const modalId = `booster-role:create-modal:${interaction.id}`;
+    const modal = new ModalBuilder().setCustomId(modalId).setTitle('Booster Rolü Oluştur').addComponents(
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('name').setLabel('Rol Adı').setMinLength(2).setMaxLength(50).setStyle(TextInputStyle.Short).setRequired(true)
+        )
+    );
+    await interaction.showModal(modal);
+    const submitted = await interaction.awaitModalSubmit({
+        filter: (item) => item.user.id === interaction.user.id && item.customId === modalId,
+        time: 120000,
+    }).catch(() => null);
+    if (!submitted) return;
+
+    await submitted.deferReply({ flags: 64 });
+    const name = submitted.fields.getTextInputValue('name').trim();
+    let role;
+    try {
+        role = await interaction.guild.roles.create({
+            name,
+            colors: { primaryColor: 0xff73fa },
+            permissions: [],
+            mentionable: false,
+            hoist: false,
+            reason: `Booster özel rolü | ${interaction.user.id}`,
+        });
+        await role.setPosition(Math.max(1, anchor.position - 1));
+        await interaction.member.roles.add(role);
+        await BoosterRole.create({ guildId: interaction.guild.id, ownerId: interaction.user.id, roleId: role.id });
+        await submitted.editReply({ content: `${role} booster rolün oluşturuldu ve ${SPECIAL_ROLES_ANCHOR} bölümünün altına yerleştirildi.` });
+    } catch (error) {
+        if (role) await role.delete().catch(() => null);
+        await submitted.editReply({ content: `Rol oluşturulamadı: ${error.message}` });
+    }
+}
+
+async function editRole(interaction) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+    const modalId = `booster-role:edit-modal:${interaction.id}`;
+    const modal = new ModalBuilder().setCustomId(modalId).setTitle('Booster Rolünü Düzenle').addComponents(
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('name').setLabel('Yeni Rol Adı').setValue(data.role.name.slice(0, 50)).setMinLength(2).setMaxLength(50).setStyle(TextInputStyle.Short).setRequired(true)
+        )
+    );
+    await interaction.showModal(modal);
+    const submitted = await interaction.awaitModalSubmit({ filter: (item) => item.user.id === interaction.user.id && item.customId === modalId, time: 120000 }).catch(() => null);
+    if (!submitted) return;
+    const name = submitted.fields.getTextInputValue('name').trim();
+    await data.role.setName(name, `Booster rol düzenleme | ${interaction.user.id}`).catch(() => null);
+    return submitted.reply({ content: `Rol adın **${name}** olarak güncellendi.`, flags: 64 });
+}
+
+async function showColorMenu(interaction) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+    const menu = new StringSelectMenuBuilder().setCustomId('booster-role:color-select').setPlaceholder('Rol rengini veya stilini seç').addOptions([
+        { label: 'Pembe', value: 'solid:ff73fa', emoji: '🌸' },
+        { label: 'Kırmızı', value: 'solid:ed4245', emoji: '🔴' },
+        { label: 'Mavi', value: 'solid:3498db', emoji: '🔵' },
+        { label: 'Mor', value: 'solid:9b59b6', emoji: '🟣' },
+        { label: 'Yeşil', value: 'solid:57f287', emoji: '🟢' },
+        { label: 'Altın', value: 'solid:f1c40f', emoji: '🟡' },
+        { label: 'Pembe → Mor Gradyan', value: 'gradient:ff73fa:9b59b6', emoji: '🎨' },
+        { label: 'Mavi → Mor Gradyan', value: 'gradient:3498db:9b59b6', emoji: '🎨' },
+        { label: 'Kırmızı → Turuncu Gradyan', value: 'gradient:ed4245:e67e22', emoji: '🎨' },
+        { label: 'Holografik', value: 'holographic', emoji: '💎' },
+    ]);
+    return interaction.reply(ephemeralPanel(['🎨 **Rol Rengi ve Stili**', 'Katı renk, gradyan veya holografik stil seçebilirsin.'], [new ActionRowBuilder().addComponents(menu)]));
+}
+
+async function applyColor(interaction) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+    const value = interaction.values[0];
+    let colors;
+    if (value === 'holographic') {
+        colors = { primaryColor: Constants.HolographicStyle.Primary, secondaryColor: Constants.HolographicStyle.Secondary, tertiaryColor: Constants.HolographicStyle.Tertiary };
+    } else {
+        const [type, primary, secondary] = value.split(':');
+        colors = { primaryColor: parseInt(primary, 16) };
+        if (type === 'gradient') colors.secondaryColor = parseInt(secondary, 16);
+    }
+    try {
+        await data.role.setColors(colors, `Booster rol rengi | ${interaction.user.id}`);
+        return interaction.update(ephemeralPanel(['✅ **Rol Rengi Güncellendi**', `${data.role} rolünün rengi/stili başarıyla değiştirildi.`]));
+    } catch (error) {
+        return interaction.update(ephemeralPanel(['❌ **Renk Uygulanamadı**', 'Gradyan ve holografik stiller sunucunun desteklediği rol stillerine bağlıdır.']));
+    }
+}
+
+async function showShareMenu(interaction) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+    const menu = new UserSelectMenuBuilder().setCustomId('booster-role:share-select').setPlaceholder(`Rolü paylaşacağın üyeleri seç (en fazla ${SHARE_LIMIT})`).setMinValues(0).setMaxValues(SHARE_LIMIT);
+    if (data.document.sharedUserIds.length) menu.setDefaultUsers(data.document.sharedUserIds.slice(0, SHARE_LIMIT));
+    return interaction.reply(ephemeralPanel(['👤➕ **Rol Paylaşımı**', `Rolünü en fazla ${SHARE_LIMIT} üye ile paylaşabilirsin. Yeni seçim mevcut listeyi günceller.`], [new ActionRowBuilder().addComponents(menu)]));
+}
+
+async function applySharing(interaction) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+    const selected = [...new Set(interaction.values)].filter((id) => id !== interaction.user.id).slice(0, SHARE_LIMIT);
+    const old = data.document.sharedUserIds || [];
+    for (const userId of old.filter((id) => !selected.includes(id))) {
+        const member = await interaction.guild.members.fetch(userId).catch(() => null);
+        if (member) await member.roles.remove(data.role).catch(() => null);
+    }
+    const valid = [];
+    for (const userId of selected) {
+        const member = await interaction.guild.members.fetch(userId).catch(() => null);
+        if (!member || member.user.bot) continue;
+        await member.roles.add(data.role).catch(() => null);
+        valid.push(userId);
+    }
+    data.document.sharedUserIds = valid;
+    await data.document.save();
+    return interaction.update(ephemeralPanel(['✅ **Rol Paylaşımı Güncellendi**', `Rolün ${valid.length} üye ile paylaşılıyor.`]));
+}
+
+async function showDeleteConfirmation(interaction) {
+    const data = await getOwnedRole(interaction, false);
+    if (!data) return;
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('booster-role:delete-confirm').setLabel('Evet, Sil').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('booster-role:delete-cancel').setLabel('İptal').setStyle(ButtonStyle.Secondary)
+    );
+    return interaction.reply(ephemeralPanel(['🗑️ **Booster Rolünü Sil**', 'Rol ve tüm paylaşımları kalıcı olarak silinecek.'], [row]));
+}
+
+async function deleteOwnedRole(interaction) {
+    const data = await getOwnedRole(interaction, false);
+    if (!data) return;
+    await data.role.delete(`Booster rol silme | ${interaction.user.id}`).catch(() => null);
+    await BoosterRole.deleteOne({ _id: data.document._id });
+    return interaction.update(ephemeralPanel(['✅ **Booster Rolü Silindi**']));
+}
+
+async function suspendBoosterRole(guild, memberId) {
+    const document = await BoosterRole.findOne({ guildId: guild.id, ownerId: memberId });
+    if (!document || document.suspendedAt) return false;
+    const role = guild.roles.cache.get(document.roleId);
+    if (role) {
+        for (const member of role.members.values()) await member.roles.remove(role).catch(() => null);
+    }
+    document.suspendedAt = new Date();
+    document.deleteAt = new Date(Date.now() + SUSPEND_TIME);
+    await document.save();
+    return true;
+}
+
+async function restoreBoosterRole(guild, memberId) {
+    const document = await BoosterRole.findOne({ guildId: guild.id, ownerId: memberId });
+    if (!document?.suspendedAt) return false;
+    const role = guild.roles.cache.get(document.roleId);
+    if (!role) {
+        await BoosterRole.deleteOne({ _id: document._id });
+        return false;
+    }
+    const ids = [document.ownerId, ...document.sharedUserIds];
+    for (const id of ids) {
+        const member = await guild.members.fetch(id).catch(() => null);
+        if (member) await member.roles.add(role).catch(() => null);
+    }
+    document.suspendedAt = null;
+    document.deleteAt = null;
+    await document.save();
+    return true;
+}
+
+function startBoosterRoleScheduler(client) {
+    if (client.boosterRoleScheduler) return;
+    const check = async () => {
+        const documents = await BoosterRole.find({ deleteAt: { $lte: new Date() } }).catch(() => []);
+        for (const document of documents) {
+            const guild = client.guilds.cache.get(document.guildId);
+            const role = guild?.roles.cache.get(document.roleId);
+            if (role) await role.delete('Booster 3 gün içinde geri gelmedi.').catch(() => null);
+            await BoosterRole.deleteOne({ _id: document._id });
+        }
+    };
+    check().catch((error) => console.error('[BOOSTER_ROLE_SCHEDULER]', error));
+    client.boosterRoleScheduler = setInterval(() => check().catch((error) => console.error('[BOOSTER_ROLE_SCHEDULER]', error)), 60000);
+}
+
+function ephemeralPanel(sections, rows = []) {
+    const container = new ContainerBuilder().setAccentColor(0xeb459e);
+    sections.forEach((section) => container.addTextDisplayComponents(new TextDisplayBuilder().setContent(section)));
+    rows.forEach((row) => container.addActionRowComponents(row));
+    return { flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral, components: [container], allowedMentions: { parse: [], users: [], roles: [] } };
+}
+
+module.exports = {
+    handleBoosterRoleInteraction,
+    isBooster,
+    restoreBoosterRole,
+    SHARE_LIMIT,
+    startBoosterRoleScheduler,
+    suspendBoosterRole,
+};
