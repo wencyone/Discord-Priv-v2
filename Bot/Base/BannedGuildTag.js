@@ -76,11 +76,15 @@ async function applyBannedGuildTagJail(client, member, settings, bannedTag) {
         duration: 0,
         expiresAt: null,
         previousRoles,
+        previousNickname: member.nickname,
     });
 
     try {
         await member.roles.set([jailRole.id], 'Yasaklı guild tag kullandığı için kalıcı jail.');
+        await member.setNickname('Jail', 'Yasaklı guild tag kullandığı için kalıcı jail.');
     } catch (error) {
+        await member.roles.set(previousRoles, 'Başarısız jail işlemi geri alındı.').catch(() => null);
+        await member.setNickname(punishment.previousNickname, 'Başarısız jail işlemi geri alındı.').catch(() => null);
         punishment.active = false;
         await punishment.save().catch(() => null);
         throw error;

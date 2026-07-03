@@ -52,6 +52,7 @@ module.exports = {
                 const previousRoles = member.roles.cache
                     .filter((role) => role.id !== message.guild.id && !role.managed && role.id !== jailRole.id)
                     .map((role) => role.id);
+                const previousNickname = member.nickname;
                 const duration = days * 24 * 60 * 60 * 1000;
                 const counter = await PunishmentCounter.findOneAndUpdate(
                     { guildId: message.guild.id },
@@ -67,12 +68,16 @@ module.exports = {
                     reason,
                     duration,
                     expiresAt: new Date(Date.now() + duration),
-                    previousRoles
+                    previousRoles,
+                    previousNickname
                 });
 
                 try {
                     await member.roles.set([jailRole.id], `.jail | Yetkili: ${message.author.tag} (${message.author.id}) | Sebep: ${reason}`);
+                    await member.setNickname('Jail', `.jail | Yetkili: ${message.author.tag} (${message.author.id}) | Sebep: ${reason}`);
                 } catch (error) {
+                    await member.roles.set(previousRoles, 'Başarısız jail işlemi geri alındı.').catch(() => null);
+                    await member.setNickname(previousNickname, 'Başarısız jail işlemi geri alındı.').catch(() => null);
                     punishment.active = false;
                     await punishment.save().catch(() => null);
                     throw error;

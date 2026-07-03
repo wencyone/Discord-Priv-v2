@@ -15,6 +15,12 @@ async function releaseJail(client, punishment, automatic = true, executorId = nu
 
     await member.roles.set(roles, automatic ? 'Jail süresi sona erdi.' : 'Jail yetkili tarafından kaldırıldı.');
 
+    if (punishment.previousNickname !== undefined) {
+        await member.setNickname(punishment.previousNickname, automatic ? 'Jail süresi sona erdi.' : 'Jail yetkili tarafından kaldırıldı.');
+    } else if (member.nickname?.toLocaleLowerCase('tr-TR') === 'jail') {
+        await member.setNickname(null, automatic ? 'Jail süresi sona erdi.' : 'Jail yetkili tarafından kaldırıldı.');
+    }
+
     punishment.active = false;
     await punishment.save();
 
