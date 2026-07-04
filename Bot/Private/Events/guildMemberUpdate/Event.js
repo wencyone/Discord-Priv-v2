@@ -21,8 +21,8 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 
     await logRightClickTimeout(oldMember, newMember);
 
-    const removedRoles = oldMember.roles.cache.difference(newMember.roles.cache);
-    const addedRoles = newMember.roles.cache.difference(oldMember.roles.cache);
+    const removedRoles = oldMember.roles.cache.filter((role) => !newMember.roles.cache.has(role.id));
+    const addedRoles = newMember.roles.cache.filter((role) => !oldMember.roles.cache.has(role.id));
     if (!removedRoles.size && !addedRoles.size) return;
 
     const entry = await newMember.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MemberRoleUpdate })
