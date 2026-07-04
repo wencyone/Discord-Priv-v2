@@ -92,10 +92,28 @@ async function createTeam(message, interaction, question) {
             new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('tags').setLabel('Ekip Tagları').setPlaceholder('tag1, tag2').setStyle(TextInputStyle.Paragraph).setRequired(true)),
         );
     await interaction.showModal(modal);
-    const submitted = await interaction.awaitModalSubmit({
-        filter: (item) => item.user.id === message.author.id && item.customId === modalId,
+    const retryCollector = question.createMessageComponentCollector({
+        filter: (item) => item.user.id === message.author.id && item.customId === 'team:create',
+        max: 1,
         time: 300000,
-    }).catch(() => null);
+    });
+    const retryPromise = new Promise((resolve) => {
+        retryCollector.once('collect', resolve);
+        retryCollector.once('end', (_, reason) => {
+            if (reason !== 'limit') resolve(null);
+        });
+    });
+    const result = await Promise.race([
+        interaction.awaitModalSubmit({
+            filter: (item) => item.user.id === message.author.id && item.customId === modalId,
+            time: 300000,
+        }).then((submitted) => ({ submitted })).catch(() => ({ submitted: null })),
+        retryPromise.then((retry) => ({ retry })),
+    ]);
+    if (result.retry) return createTeam(message, result.retry, question);
+
+    retryCollector.stop('submitted');
+    const submitted = result.submitted;
     if (!submitted) return expire(question);
 
     const name = submitted.fields.getTextInputValue('name').trim().toLocaleLowerCase('tr-TR');
