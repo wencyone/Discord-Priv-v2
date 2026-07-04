@@ -258,14 +258,12 @@ async function backupRole(guild, roleOrId, options = {}) {
 	if (options.includeMembers) {
 		const existing = await roleModel.findOne({ guild: guild.id, role: role.id }).catch(() => null);
 		const liveMembers = role.members.map((member) => member.id);
-		if (existing?.restoreInProgress) {
+		if (Array.isArray(existing?.pendingMembers) && existing.pendingMembers.length) {
 			backup.members = [...new Set([...(existing.members || []), ...liveMembers])];
 			backup.pendingMembers = [...new Set(existing.pendingMembers || [])];
-			backup.restoreInProgress = true;
 		} else {
 			backup.members = liveMembers;
 			backup.pendingMembers = [];
-			backup.restoreInProgress = false;
 		}
 	}
 
@@ -506,8 +504,7 @@ async function createRole(client, document, useDistributors = false) {
 				isDeleted: false,
 				deletedTimestamp: undefined,
 				members: [...new Set(Array.isArray(document.members) ? document.members : [])],
-				pendingMembers: [...new Set(Array.isArray(document.members) ? document.members : [])],
-				restoreInProgress: Array.isArray(document.members) && document.members.length > 0
+				pendingMembers: [...new Set(Array.isArray(document.members) ? document.members : [])]
 			}
 		},
 		{ $upsert: true }
@@ -642,7 +639,7 @@ async function runRoleMemberDistribution(client, role, memberIds, roleName, useD
 	if (!targets.length) {
 		await roleModel.updateOne(
 			{ guild: role.guild.id, role: role.id },
-			{ $set: { pendingMembers: [], restoreInProgress: false } }
+			{ $set: { pendingMembers: [] } }
 		).catch(() => null);
 		return { restored: 0, pending: 0, workers: 0 };
 	}
@@ -651,7 +648,7 @@ async function runRoleMemberDistribution(client, role, memberIds, roleName, useD
 	if (!workers.length) {
 		await roleModel.updateOne(
 			{ guild: role.guild.id, role: role.id },
-			{ $set: { pendingMembers: targets, restoreInProgress: true } }
+			{ $set: { pendingMembers: targets } }
 		).catch(() => null);
 		console.error(`[ROLE RESTORE] ${role.name} rolunu dagitabilecek bot bulunamadi. ${targets.length} uye kuyrukta tutuluyor.`);
 		return { restored: 0, pending: targets.length, workers: 0 };
@@ -669,7 +666,7 @@ async function runRoleMemberDistribution(client, role, memberIds, roleName, useD
 		const snapshot = [...pending];
 		persistChain = persistChain.then(() => roleModel.updateOne(
 			{ guild: role.guild.id, role: role.id },
-			{ $set: { pendingMembers: snapshot, restoreInProgress: snapshot.length > 0 } },
+			{ $set: { pendingMembers: snapshot } },
 			{ $upsert: true }
 		).catch((error) => console.warn(`[ROLE RESTORE QUEUE] Kuyruk kaydedilemedi: ${error.message}`)));
 		return persistChain;
@@ -679,7 +676,7 @@ async function runRoleMemberDistribution(client, role, memberIds, roleName, useD
 	const desiredMembers = [...new Set([...(currentBackup?.members || []), ...targets])];
 	await roleModel.updateOne(
 		{ guild: role.guild.id, role: role.id },
-		{ $set: { members: desiredMembers, pendingMembers: targets, restoreInProgress: true } },
+		{ $set: { members: desiredMembers, pendingMembers: targets } },
 		{ $upsert: true }
 	).catch(() => null);
 

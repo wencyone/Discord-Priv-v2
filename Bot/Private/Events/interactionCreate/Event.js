@@ -280,21 +280,24 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                     new ActionRowBuilder().setComponents(new TextInputBuilder().setCustomId('channelLimit').setLabel('Oda limitini giriniz.').setStyle(TextInputStyle.Short)),
                 );
 
-            i.showModal(row)
+            await i.showModal(row);
 
-            const modalCollected = await i.awaitModalSubmit({ time: 1000 * 60 * 2 });
+            const modalCollected = await i.awaitModalSubmit({
+                time: 1000 * 60 * 2,
+                filter: (interaction) => interaction.customId === 'changingLimit' && interaction.user.id === i.user.id
+            }).catch(() => null);
+            if (!modalCollected) return;
+
             const channelLimit = modalCollected.fields.getTextInputValue('channelLimit');
 
-            if (modalCollected) {
-                if (isNaN(channelLimit)) return await modalCollected.reply({ content: 'Geçerli bir limit belirtmelisiniz.', flags: 64 });
+            if (isNaN(channelLimit)) return await modalCollected.reply({ content: 'Geçerli bir limit belirtmelisiniz.', flags: 64 });
 
-                await channel.setUserLimit(channelLimit).catch((err) => console.error())
+            await channel.setUserLimit(channelLimit).catch((err) => console.error())
 
-                await modalCollected.reply({
-                    content: `Oda limiti başarıyla değiştirildi: ${bold(channelLimit)}`,
-                    flags: 64
-                }).catch(() => null);
-            }
+            await modalCollected.reply({
+                content: `Oda limiti başarıyla değiştirildi: ${bold(channelLimit)}`,
+                flags: 64
+            }).catch(() => null);
         }
 
         if (i.customId === 'lockOrUnlock') {

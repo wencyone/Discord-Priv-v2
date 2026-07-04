@@ -33,7 +33,7 @@ async function resumePendingRoleRestores(guild) {
             if (!role) continue;
             const backup = await roleModel.findOne({ guild: guild.id, role: roleId }).catch(() => null);
             const pendingMembers = [...new Set(backup?.pendingMembers || [])];
-            if (!backup?.restoreInProgress || !pendingMembers.length) continue;
+            if (!pendingMembers.length) continue;
 
             console.log(`[ROLE RESTORE QUEUE] ${role.name}: ${pendingMembers.length} bekleyen uye yeniden deneniyor.`);
             await distributeRoleMembers(client, role, pendingMembers, backup.name || role.name, true);
@@ -72,7 +72,7 @@ client.on(Events.ClientReady, async () => {
         const existingRole = guild.roles.cache.get(roleId);
         if (existingRole) {
             const pendingMembers = [...new Set(backup?.pendingMembers || [])];
-            if (backup?.restoreInProgress && pendingMembers.length) {
+            if (pendingMembers.length) {
                 console.log(`[ROLE RESTORE STARTUP] ${existingRole.name}: ${pendingMembers.length} bekleyen uye dagitimina devam ediliyor.`);
                 await distributeRoleMembers(client, existingRole, pendingMembers, backup.name || existingRole.name, true);
             }

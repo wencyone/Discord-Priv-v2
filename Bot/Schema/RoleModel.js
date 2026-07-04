@@ -11,7 +11,6 @@ const model = new Model('wency-role', Schema({
     permissions: String,
     members: Array,
     pendingMembers: Array,
-    restoreInProgress: Boolean,
     icon: String,
     unicodeEmoji: String,
     mentionable: Boolean,
