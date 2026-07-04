@@ -17,31 +17,38 @@ module.exports = {
                 return message.reply('Bir kullanıcı belirtmelisin.');
             }
 
-            const member = message.mentions.members.first() || await message.guild.members.fetch(args[0]).catch(() => null);
+            const targetId = args[0].replace(/[<@!>]/g, '').trim();
 
-            if (!member) {
+            if (!/^\d{16,20}$/.test(targetId)) {
                 return message.reply('Geçerli bir kullanıcı belirtmelisin.');
             }
 
-            if (member.id === message.author.id) {
+            const member = message.mentions.members.first() || await message.guild.members.fetch(targetId).catch(() => null);
+            const user = member?.user || await client.users.fetch(targetId).catch(() => null);
+
+            if (!user) {
+                return message.reply('Geçerli bir kullanıcı belirtmelisin.');
+            }
+
+            if (user.id === message.author.id) {
                 return message.reply('Kendini banlayamazsın.');
             }
 
-            if (member.id === message.guild.ownerId) {
+            if (user.id === message.guild.ownerId) {
                 return message.reply('Sunucu sahibini banlayamazsın.');
             }
 
-            if (member.roles.highest.position >= message.member.roles.highest.position) {
+            if (member && member.roles.highest.position >= message.member.roles.highest.position) {
                 return message.reply('Bu kullanıcıyı banlayamazsın - yetkisi senden yüksek veya aynı seviyede.');
             }
 
-            if (member.roles.highest.position >= message.guild.members.me.roles.highest.position) {
+            if (member && member.roles.highest.position >= message.guild.members.me.roles.highest.position) {
                 return message.reply('Bu kullanıcıyı banlayamam - yetkisi benden yüksek.');
             }
 
             const reason = args.slice(1).join(' ') || 'Sebep belirtilmedi';
 
-            await member.ban({ reason });
+            await message.guild.bans.create(user.id, { reason });
             const counter = await PunishmentCounter.findOneAndUpdate(
                 { guildId: message.guild.id },
                 { $inc: { caseId: 1 } },
@@ -52,7 +59,7 @@ module.exports = {
             await Punishment.create({
                 guildId: message.guild.id,
                 caseId,
-                userId: member.id,
+                userId: user.id,
                 moderatorId: message.author.id,
                 type: 'ban',
                 reason,
@@ -63,7 +70,7 @@ module.exports = {
             if (logChannel) {
                 const banEmbed = new EmbedBuilder()
                     .setTitle('Kullanıcı Banlandı')
-                    .setDescription(`${member} \`${member.user.tag}\` banlandı.`)
+                    .setDescription(`<@${user.id}> \`${user.tag}\` banlandı.`)
                     .addFields(
                         { name: 'Ceza Numarası', value: `#${caseId}`, inline: true },
                         { name: 'Banlayan', value: `${message.author} \`${message.author.tag}\``, inline: true },
@@ -78,7 +85,7 @@ module.exports = {
                 });
             }
 
-            return message.reply(`${member} \`${member.user.tag}\` başarıyla banlandı. Sebep: ${reason} (Ceza Numarası: #${caseId})`);
+            return message.reply(`<@${user.id}> \`${user.tag}\` başarıyla banlandı. Sebep: ${reason} (Ceza Numarası: #${caseId})`);
 
         } catch (error) {
             console.error('Ban error:', error);
