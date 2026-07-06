@@ -13,7 +13,7 @@ client.on(Events.MessageDelete, async (message) => {
                     id: message.id,
                     author: message.author,
                     content: message.cleanContent || message.content || '',
-                    attachments: mediaFiles.map((media) => media.url),
+                    attachments: mediaFiles,
                     created: message.createdTimestamp,
                     deleted: Date.now(),
                 }
