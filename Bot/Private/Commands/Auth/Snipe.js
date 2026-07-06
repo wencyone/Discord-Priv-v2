@@ -34,14 +34,10 @@ module.exports = {
 async function sendSnipeMedia(channel, storedMedia, index) {
     const media = typeof storedMedia === 'string' ? { url: storedMedia } : storedMedia;
     const downloaded = await downloadMedia(media);
-    const kind = downloaded?.kind || getMediaKind(media.url, media.name, media.contentType);
-    const mediaEmbed = new EmbedBuilder().setDescription(kind === 'video' ? '**Silinen video**' : '**Silinen görsel**');
 
     if (downloaded) {
         const fileName = buildFileName(media, index, downloaded.contentType, downloaded.kind);
-        if (downloaded.kind === 'image') mediaEmbed.setImage(`attachment://${fileName}`);
         await channel.send({
-            embeds: [mediaEmbed],
             files: [new AttachmentBuilder(downloaded.buffer, { name: fileName })],
         });
         return;
@@ -49,8 +45,7 @@ async function sendSnipeMedia(channel, storedMedia, index) {
 
     const fallbackURL = media.proxyURL || media.url;
     if (!fallbackURL) return;
-    if (kind === 'image') mediaEmbed.setImage(fallbackURL);
-    await channel.send({ content: kind === 'video' ? fallbackURL : undefined, embeds: [mediaEmbed] });
+    await channel.send({ content: fallbackURL });
 }
 
 async function downloadMedia(media) {
