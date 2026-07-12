@@ -1,4 +1,14 @@
-const { Events } = require('discord.js');
+const {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ContainerBuilder,
+    Events,
+    MessageFlags,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
+    TextDisplayBuilder,
+} = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const Punishment = require('../../../Schema/Punishment');
 const { releaseJail } = require('../../../Base/Jail');
@@ -6,7 +16,35 @@ const { createMemberLog } = require('../../../Base/MemberLog');
 const { syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
 const { syncGuildTagRole } = require('../../../Base/GuildTagRole');
 
+function createWencyWelcomeDM(member) {
+    const container = new ContainerBuilder()
+        .setAccentColor(0x5865f2)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+            `# ${member.guild.name} sunucusuna hoş geldin!`,
+            'Sunucunuza bu tarz gelişmiş Discord botları istiyorsanız wency.dev adresini ziyaret edebilirsiniz.',
+            '',
+            'wency.dev üzerinden özel Discord bot sistemleri ve yazılım hizmetleri hakkında bilgi alabilirsiniz.',
+        ].join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addActionRowComponents(
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel('wency.dev')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL('https://wency.dev')
+            )
+        );
+
+    return {
+        flags: MessageFlags.IsComponentsV2,
+        components: [container],
+        allowedMentions: { parse: [], users: [], roles: [] },
+    };
+}
+
 client.on(Events.GuildMemberAdd, async (member) => {
+
+    if (!member.user.bot) member.send(createWencyWelcomeDM(member)).catch(() => null);
 
     const channel = member.guild.channels.cache.find((item) => item.name === 'giriş-çıkış-log');
     if (channel?.isTextBased()) channel.send(createMemberLog(member, true)).catch(() => null);
