@@ -21,7 +21,7 @@ function createWencyWelcomeDM(member) {
         .setAccentColor(0x5865f2)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent([
             `# ${member.guild.name} sunucusuna hoş geldin!`,
-            'Sunucunuza bu tarz gelişmiş Discord botları istiyorsanız wency.dev adresini ziyaret edebilirsiniz.',
+            'Sunucunuza bu tarz gelişmiş Discord botları istiyorsanız: wency.dev',
             '',
             'wency.dev üzerinden özel Discord bot sistemleri ve yazılım hizmetleri hakkında bilgi alabilirsiniz.',
         ].join('\n')))
