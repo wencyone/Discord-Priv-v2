@@ -1,10 +1,11 @@
-const { PermissionFlagsBits, PermissionsBitField, ChannelType, Client, GatewayIntentBits, Partials, Collection, GuildPremiumTier } = require('discord.js');
+const { PermissionFlagsBits, PermissionsBitField, ChannelType, Client, GatewayIntentBits, Partials, Collection, GuildPremiumTier, AttachmentBuilder } = require('discord.js');
 
 const config = require('../../../System');
 const roleModel = require('../../Schema/RoleModel');
 const expressionModel = require('../../Schema/ExpressionModel');
 const channelModel = require('../../Schema/ChannelModel');
 const Settings = require('../../Schema/GuardSettings');
+const PrivateSettings = require('../../Schema/Settings');
 
 const limits = new Collection()
 const voiceBitrates = {
@@ -24,6 +25,30 @@ function date(date) {
 		minute: '2-digit',
 	});
 };
+
+function isPrivateRoomChannel(channel, settings) {
+	if (!channel || !settings) return false;
+
+	const channelId = channel?.id || channel;
+	const parentId = channel?.parentId || channel?.parent?.id;
+	const privateRoomIds = (settings.privateRooms || [])
+		.map((room) => room?.channel || room?.id)
+		.filter(Boolean);
+
+	return privateRoomIds.includes(channelId)
+		|| Boolean(settings.secretRoomParent && parentId === settings.secretRoomParent);
+}
+
+async function isPrivateRoomBackupChannel(guild, channel) {
+	if (!guild?.id || !channel) return false;
+
+	const settings = await PrivateSettings.findOne({ id: guild.id }).catch(() => null);
+	if (isPrivateRoomChannel(channel, settings)) return true;
+
+	const channelId = channel?.id || channel;
+	const document = await channelModel.findOne({ guild: guild.id, channel: channelId }).catch(() => null);
+	return isPrivateRoomChannel({ id: channelId, parentId: document?.parentId }, settings);
+}
 
 const distClients = new Map();
 const distLoginPromises = new Map();
@@ -107,7 +132,12 @@ async function startDists(tokens = []) {
 }
 
 async function channelBackup(guild) {
+	const settings = await PrivateSettings.findOne({ id: guild.id }).catch(() => null);
 	await Promise.all(guild.channels.cache.map(async (channel) => {
+		if (isPrivateRoomChannel(channel, settings)) {
+			await channelModel.deleteOne({ guild: guild.id, channel: channel.id }).catch(() => null);
+			return;
+		}
 
 		const messages = [];
 		let fetchComplete = false;
@@ -468,15 +498,21 @@ async function createRole(client, document, useDistributors = false) {
 	if (!guild) return;
 
 	const oldRoleId = document.role;
+	const roleName = String(document.name || '').trim().slice(0, 100);
+	if (!roleName) {
+		console.warn(`[ROLE RESTORE] ${oldRoleId || 'Bilinmeyen'} ID'li rol yedegi gecersiz: rol ismi bos.`);
+		return null;
+	}
+
 	const role = await guild.roles.create({
-		name: document.name,
+		name: roleName,
 		color: document.color,
 		permissions: document.permissions,
 		hoist: document.hoist,
 		mentionable: document.mentionable,
-		reason: `Silinen ${document.name} rolunun otomatik yedegi`,
+		reason: `Silinen ${roleName} rolunun otomatik yedegi`,
 	}).catch((error) => {
-		console.error(`[ROLE RESTORE] ${document.name} rolu olusturulamadi: ${error.message}`);
+		console.error(`[ROLE RESTORE] ${roleName} rolu olusturulamadi: ${error.message}`);
 		return null;
 	});
 
@@ -487,11 +523,11 @@ async function createRole(client, document, useDistributors = false) {
 		});
 	}
 	if (guild.premiumTier >= 2 && document.icon) {
-		await role.setIcon(document.icon, `Silinen ${document.name} rolunun simge yedegi`).catch((error) => {
+		await role.setIcon(document.icon, `Silinen ${roleName} rolunun simge yedegi`).catch((error) => {
 			console.warn(`[ROLE RESTORE] ${role.name} rol simgesi ayarlanamadi: ${error.message}`);
 		});
 	} else if (document.unicodeEmoji) {
-		await role.setUnicodeEmoji(document.unicodeEmoji, `Silinen ${document.name} rolunun emoji yedegi`).catch((error) => {
+		await role.setUnicodeEmoji(document.unicodeEmoji, `Silinen ${roleName} rolunun emoji yedegi`).catch((error) => {
 			console.warn(`[ROLE RESTORE] ${role.name} rol emojisi ayarlanamadi: ${error.message}`);
 		});
 	}
@@ -540,13 +576,13 @@ async function createRole(client, document, useDistributors = false) {
 
 	const roleMembers = Array.isArray(document.members) ? [...new Set(document.members)] : [];
 	const distribution = roleMembers.length
-		? await distributeRoleMembers(client, role, roleMembers, document.name, useDistributors)
+		? await distributeRoleMembers(client, role, roleMembers, roleName, useDistributors)
 		: { restored: 0, pending: 0, workers: 0 };
 
 	if (distribution.pending > 0) {
-		console.warn(`[ROLE RESTORE] ${document.name} rolu ${role.id} ID ile kuruldu. ${distribution.restored}/${roleMembers.length} uye tamamlandi, ${distribution.pending} uye kuyrukta.`);
+		console.warn(`[ROLE RESTORE] ${roleName} rolu ${role.id} ID ile kuruldu. ${distribution.restored}/${roleMembers.length} uye tamamlandi, ${distribution.pending} uye kuyrukta.`);
 	} else {
-		console.log(`[ROLE RESTORE] ${document.name} rolu ${role.id} ID ile kuruldu ve ${roleMembers.length}/${roleMembers.length} uye eksiksiz dagitildi.`);
+		console.log(`[ROLE RESTORE] ${roleName} rolu ${role.id} ID ile kuruldu ve ${roleMembers.length}/${roleMembers.length} uye eksiksiz dagitildi.`);
 	}
 
 	return role;
@@ -764,10 +800,9 @@ async function createChannel(client, document) {
 	};
 
 	if (document.type === ChannelType.GuildCategory) {
-		await channelModel.updateOne(
+		await channelModel.updateMany(
 			{ guild: config.serverID, parentId: document.channel },
-			{ $set: { parentId: channel.id } },
-			{ $upsert: true }
+			{ $set: { parentId: channel.id } }
 		).catch((err) => { });
 	}
 
@@ -797,4 +832,4 @@ async function createExpression(client, id, type) {
 	}
 }
 
-module.exports = { date, startDists, checkWhitelist, punish, backupRole, roleBackup, syncRoleMemberBackup, expressionBackup, channelBackup, checkRoles, createRole, distributeRoleMembers, createChannel, createExpression };
+module.exports = { date, startDists, checkWhitelist, punish, backupRole, roleBackup, syncRoleMemberBackup, expressionBackup, channelBackup, checkRoles, createRole, distributeRoleMembers, createChannel, createExpression, isPrivateRoomChannel, isPrivateRoomBackupChannel };

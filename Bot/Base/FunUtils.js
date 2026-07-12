@@ -52,6 +52,13 @@ function getPrefix() {
     return global.system?.Private?.Prefix?.[0] || '.';
 }
 
+function getEconomyBackground(guild) {
+    return guild?.bannerURL({ extension: 'png', size: 2048 })
+        || guild?.splashURL({ extension: 'png', size: 2048 })
+        || guild?.iconURL({ extension: 'png', size: 1024 })
+        || undefined;
+}
+
 function mustUseChannel(message, channelId, allowAdmin = false) {
     const channel = message.guild?.channels.cache.get(channelId);
     if (!channel) return null;
@@ -63,6 +70,7 @@ function mustUseChannel(message, channelId, allowAdmin = false) {
 module.exports = {
     addCoins,
     formatDinar,
+    getEconomyBackground,
     generateCardNumber,
     getAccount,
     getDocument,

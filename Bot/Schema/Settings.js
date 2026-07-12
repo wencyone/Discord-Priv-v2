@@ -14,6 +14,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     womanClickCount: { type: Number, default: 0 },
 
     privateRooms: { type: [Object], default: [] },
+    privateRoomTopMoves: { type: [Object], default: [] },
     specialCmds: { type: [Object], default: [] },
     snipeData: { type: [Object], default: [] },
     teams: { type: [Object], default: [] },
@@ -36,6 +37,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     familyRole: { type: String, default: '' }, 
     vipRole: { type: String, default: '' },
     jailRole: { type: String, default: '' },
+    guildTagRole: { type: String, default: '' },
 
     banAuth: { type: [String], default: [] },
     timeOutAuth: { type: [String], default: [] },

@@ -3,16 +3,18 @@ const {
     AuditLogEvent,
     ButtonBuilder,
     ButtonStyle,
+    ChannelType,
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
     bold,
     inlineCode,
 } = require('discord.js');
-const { createRole, createChannel, createExpression } = require('../../../Utils/Functions');
+const { createRole, createChannel, createExpression, isPrivateRoomChannel } = require('../../../Utils/Functions');
 const RoleModel = require('../../../../Schema/RoleModel');
 const ChannelModel = require('../../../../Schema/ChannelModel');
 const ExpressionModel = require('../../../../Schema/ExpressionModel');
+const Settings = require('../../../../Schema/Settings');
 const { emojis, panel, wait, expired } = require('../../Panel');
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -72,39 +74,116 @@ async function showRoles(client, message, question) {
     ]));
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('audit:restore:role').setLabel('Rolü Yedekten Kur').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('audit:restore:role').setLabel('Tüm Rolleri Yedekten Kur').setStyle(ButtonStyle.Secondary)
     );
     await question.edit(panel([
         `${arrow} ${bold('Son 24 Saatte Silinen Roller')}\n${point} Toplam kayıt: ${inlineCode(String(logs.length))}`,
         auditLines(logs, point, 'role'),
-        `${point} Kurmak istediğin rolün ID bilgisini aşağıdaki butona basarak gir.`,
+        `${point} Silinen tüm roller yedek kaydından otomatik kurulabilir.`,
     ], [row]));
 
     const interaction = await wait(question, message.author.id, ['audit:restore:role']);
     if (!interaction) return expired(question, client);
-    return restoreFromModal(client, message, interaction, 'role');
+    return restoreDeletedRoles(client, message, question, interaction, logs);
 }
 
 async function showChannels(client, message, question) {
     const { arrow, point, mark } = await emojis(client);
-    const logs = recent((await message.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelDelete })).entries);
+    const settings = await Settings.findOne({ id: message.guild.id }).catch(() => null);
+    const logs = recent((await message.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelDelete })).entries)
+        .filter((entry) => !isPrivateRoomChannel(entry.target || entry.targetId, settings));
     if (!logs.length) return question.edit(panel([
         `${mark} ${bold('Silinen Kanal Bulunamadı')}`,
         `${point} Son 24 saat içinde silinmiş kanal bulunmuyor.`,
     ]));
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('audit:restore:channel').setLabel('Kanalı Yedekten Kur').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('audit:restore:channel').setLabel('Tüm Kanalları Yedekten Kur').setStyle(ButtonStyle.Secondary)
     );
     await question.edit(panel([
         `${arrow} ${bold('Son 24 Saatte Silinen Kanallar')}\n${point} Toplam kayıt: ${inlineCode(String(logs.length))}`,
         auditLines(logs, point, 'channel'),
-        `${point} Kurmak istediğin kanalın ID bilgisini aşağıdaki butona basarak gir.`,
+        `${point} Silinen tüm kanallar yedek kaydından otomatik kurulabilir.`,
     ], [row]));
 
     const interaction = await wait(question, message.author.id, ['audit:restore:channel']);
     if (!interaction) return expired(question, client);
-    return restoreFromModal(client, message, interaction, 'channel');
+    return restoreDeletedChannels(client, message, question, interaction, logs);
+}
+
+async function restoreDeletedRoles(client, message, question, interaction, logs) {
+    const { point, check, mark } = await emojis(client);
+    await interaction.deferUpdate();
+    await question.edit(panel([
+        `${point} ${bold('Roller Geri Yükleniyor')}`,
+        `${point} Yedek kayıtları kontrol ediliyor.`,
+    ]));
+
+    const ids = [...new Set(logs.map((entry) => entry.targetId).filter(Boolean))];
+    const documents = [];
+    for (const id of ids) {
+        const document = await RoleModel.findOne({ guild: message.guild.id, role: id }).catch(() => null);
+        if (document) documents.push(document);
+    }
+
+    let restored = 0;
+    let failed = ids.length - documents.length;
+    for (const document of documents.sort((a, b) => (a.position || 0) - (b.position || 0))) {
+        const role = await createRole(client, document, true).catch(() => null);
+        if (role) restored++;
+        else failed++;
+    }
+
+    return question.edit(panel([
+        `${check} ${bold('Rol Denetimi Tamamlandı')}`,
+        `${point} Kurulan: ${inlineCode(String(restored))}`,
+        `${failed ? `${mark} Kurulamayan veya yedeği bulunmayan: ${inlineCode(String(failed))}` : `${check} Tüm kayıtlar işlendi.`}`,
+    ]));
+}
+
+async function restoreDeletedChannels(client, message, question, interaction, logs) {
+    const { point, check, mark } = await emojis(client);
+    await interaction.deferUpdate();
+    await question.edit(panel([
+        `${point} ${bold('Kanallar Geri Yükleniyor')}`,
+        `${point} Yedek kayıtları kontrol ediliyor.`,
+    ]));
+
+    const ids = [...new Set(logs.map((entry) => entry.targetId).filter(Boolean))];
+    const firstDocuments = [];
+    for (const id of ids) {
+        const document = await ChannelModel.findOne({ guild: message.guild.id, channel: id }).catch(() => null);
+        if (document) firstDocuments.push(document);
+    }
+
+    const categoryIds = new Set(firstDocuments.filter((document) => document.type === ChannelType.GuildCategory).map((document) => document.channel));
+    let restored = 0;
+    let failed = ids.length - firstDocuments.length;
+
+    for (const document of firstDocuments.filter((document) => document.type === ChannelType.GuildCategory).sort((a, b) => (a.position || 0) - (b.position || 0))) {
+        const channel = await createChannel(client, document).catch(() => null);
+        if (channel) restored++;
+        else failed++;
+    }
+
+    const otherIds = ids.filter((id) => !categoryIds.has(id));
+    const otherDocuments = [];
+    for (const id of otherIds) {
+        const document = await ChannelModel.findOne({ guild: message.guild.id, channel: id }).catch(() => null);
+        if (document) otherDocuments.push(document);
+    }
+
+    for (const document of otherDocuments.sort((a, b) => (a.position || 0) - (b.position || 0))) {
+        const channel = await createChannel(client, document).catch(() => null);
+        if (channel) restored++;
+        else failed++;
+    }
+
+    return question.edit(panel([
+        `${check} ${bold('Kanal Denetimi Tamamlandı')}`,
+        `${point} Kurulan: ${inlineCode(String(restored))}`,
+        `${failed ? `${mark} Kurulamayan veya yedeği bulunmayan: ${inlineCode(String(failed))}` : `${check} Tüm kayıtlar işlendi.`}`,
+    ]));
 }
 
 async function showExpressions(client, message, question) {

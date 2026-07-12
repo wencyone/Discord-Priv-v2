@@ -8,6 +8,7 @@ const channelModel = require('../../Schema/ChannelModel')
 const { scheduleJob } = require('node-schedule');
 const { expressionBackup, roleBackup, channelBackup, createRole, createChannel, createExpression } = require('../Utils/Functions');
 const { connectBotToVoice } = require('../../Base/VoiceConnection');
+const { attachClientErrorHandlers, startWithRetry } = require('../../Base/Startup');
 const guardCommands = [
 	require('./Commands/Guard/Whitelist'),
 	require('./Commands/Guard/Settings'),
@@ -21,6 +22,7 @@ const client = new Client({
 	presence: { status: config.Presence.Status, activities: [{ name: config.Presence.Message[Math.floor(Math.random() * config.Presence.Message.length)], type: config.Presence.Type, url: 'https://www.twitch.tv/wencycuk' }] },
 	ws: { version: 10, properties: { $browser: 'discord.js' } }
 });
+attachClientErrorHandlers(client, 'Logger');
 
 client.on(Events.ClientReady, async () => {
 
@@ -419,15 +421,16 @@ client.on(Events.MessageCreate, async (message) => {
 								})
 							],
 							components: [
-								new ActionRowBuilder({
-									components: [
-										new ButtonBuilder({
-											customId: 'roleCreate',
-											label: 'Rol Kur',
-											style: ButtonStyle.Secondary
-										})
-									]
-								})
+								new ActionRowBuilder().addComponents(
+									new ButtonBuilder()
+										.setCustomId('roleCreate')
+										.setLabel('Rol Kur')
+										.setStyle(ButtonStyle.Secondary),
+									new ButtonBuilder()
+										.setCustomId('allRoleCreate')
+										.setLabel('Tüm Rolleri Kur')
+										.setStyle(ButtonStyle.Secondary)
+								)
 								]
 							}).catch(err => { })
 							if (!newQuestion) return;
@@ -466,6 +469,27 @@ client.on(Events.MessageCreate, async (message) => {
 									const restoredRole = await createRole(client, document, true);
 									await modalCollected.reply({ content: restoredRole ? 'Rol ve üye dağıtımı başarıyla geri yüklendi!' : 'Rol geri yüklenemedi. Bot rol sırasını ve yetkilerini kontrol edin.', components: [], flags: 64 }).catch(err => { });
 								}
+							} else if (i.customId === 'allRoleCreate') {
+								await i.deferReply({ flags: 64 }).catch(() => null);
+								const roleIds = [...new Set(arr.map((entry) => entry.value.slice(5)))];
+								const documents = [];
+
+								for (const roleId of roleIds) {
+									const document = await roleModel.findOne({ guild: message.guild.id, role: roleId }).catch(() => null);
+									if (document) documents.push(document);
+								}
+
+								let success = 0;
+								let failed = 0;
+								for (const document of documents.sort((a, b) => (a.position || 0) - (b.position || 0))) {
+									const restoredRole = await createRole(client, document, true).catch(() => null);
+									if (restoredRole) success++;
+									else failed++;
+								}
+
+								await i.editReply({
+									content: `Toplu rol yedeği tamamlandı. Başarılı: ${success}, Başarısız: ${failed}, Veritabanında yok: ${roleIds.length - documents.length}`
+								}).catch(() => null);
 							}
 						});
 					} else {
@@ -496,15 +520,16 @@ client.on(Events.MessageCreate, async (message) => {
 								})
 							],
 							components: [
-								new ActionRowBuilder({
-									components: [
-										new ButtonBuilder({
-											customId: 'channelCreate',
-											label: 'Kanal Kur',
-											style: ButtonStyle.Secondary
-										})
-									]
-								})
+								new ActionRowBuilder().addComponents(
+									new ButtonBuilder()
+										.setCustomId('channelCreate')
+										.setLabel('Kanal Kur')
+										.setStyle(ButtonStyle.Secondary),
+									new ButtonBuilder()
+										.setCustomId('allChannelCreate')
+										.setLabel('Tüm Kanalları Kur')
+										.setStyle(ButtonStyle.Secondary)
+								)
 							]
 						}).catch((error) => {
 							console.error(`[DENETIM] Kanal paneli gonderilemedi: ${error.message}`);
@@ -551,6 +576,42 @@ client.on(Events.MessageCreate, async (message) => {
 									await modalCollected.reply({ content: 'Kanal başarıyla oluşturuldu!', components: [], flags: 64 }).catch(err => { });
 								}
 
+							} else if (i.customId === 'allChannelCreate') {
+								await i.deferReply({ flags: 64 }).catch(() => null);
+								const channelIds = [...new Set(arr.map((entry) => entry.value.slice(8)))];
+								const firstDocuments = [];
+
+								for (const channelId of channelIds) {
+									const document = await channelModel.findOne({ guild: message.guild.id, channel: channelId }).catch(() => null);
+									if (document) firstDocuments.push(document);
+								}
+
+								const categoryIds = new Set(firstDocuments.filter((document) => document.type === ChannelType.GuildCategory).map((document) => document.channel));
+								let success = 0;
+								let failed = 0;
+
+								for (const document of firstDocuments.filter((document) => document.type === ChannelType.GuildCategory).sort((a, b) => (a.position || 0) - (b.position || 0))) {
+									const restoredChannel = await createChannel(client, document).catch(() => null);
+									if (restoredChannel) success++;
+									else failed++;
+								}
+
+								const otherChannelIds = channelIds.filter((channelId) => !categoryIds.has(channelId));
+								const otherDocuments = [];
+								for (const channelId of otherChannelIds) {
+									const document = await channelModel.findOne({ guild: message.guild.id, channel: channelId }).catch(() => null);
+									if (document) otherDocuments.push(document);
+								}
+
+								for (const document of otherDocuments.sort((a, b) => (a.position || 0) - (b.position || 0))) {
+									const restoredChannel = await createChannel(client, document).catch(() => null);
+									if (restoredChannel) success++;
+									else failed++;
+								}
+
+								await i.editReply({
+									content: `Toplu kanal yedeği tamamlandı. Başarılı: ${success}, Başarısız: ${failed}, Veritabanında yok: ${channelIds.length - firstDocuments.length}`
+								}).catch(() => null);
 							}
 						});
 
@@ -979,15 +1040,12 @@ client.on(Events.GuildAuditLogEntryCreate, async (audit, guild) => {
 });
 
 async function start() {
-    try {
+    await startWithRetry('Logger', async () => {
         await Driver.authenticate();
         console.log('[DATABASE] Ortak Guard veritabanı bağlantısı başarılı.');
         await client.login(config.Security.Logger);
         console.log(`[BOT] ${client.user.tag} olarak giriş yaptı!`);
-    } catch (error) {
-        console.error(`[STARTUP] Logger bot başlatılamadı: ${error.message}`);
-        process.exitCode = 1;
-    }
+    });
 }
 
 start();

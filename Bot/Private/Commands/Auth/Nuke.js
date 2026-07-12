@@ -1,4 +1,5 @@
 const { PermissionsBitField: { Flags }, EmbedBuilder } = require('discord.js');
+const NUKE_GIF = 'https://cdn.discordapp.com/attachments/1420404232724414606/1462219462492291133/Adsz_video_Clipchamp_ile_yapld_1.gif?ex=6a4f7ebe&is=6a4e2d3e&hm=cd161655dec9bd47c20375b3176a6a189801467277d804d23ef0158b36a045f1&';
 
 module.exports = {
     name: 'nuke',
@@ -40,10 +41,9 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor('Red')
                 .setDescription(`💥 Bu kanal ${message.author} tarafından nukelendi!`)
+                .setImage(NUKE_GIF)
                 .setFooter({ text: 'Created By Wency' })
                 .setTimestamp();
-            const guildIcon = message.guild.iconURL({ dynamic: true, size: 1024 });
-            if (guildIcon) embed.setImage(guildIcon);
 
             return newChannel.send({ embeds: [embed] });
 

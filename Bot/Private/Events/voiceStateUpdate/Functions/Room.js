@@ -2,7 +2,7 @@ const { PermissionsBitField: { Flags }, Events, ChannelType, bold } = require('d
 const Settings = require('../../../../Schema/Settings');
 const { formatPrivateRoomName } = require('../../../../Base/PrivateRoom');
 
-const VOICE_RESTRICTION_RELEASE_DELAY = 5000;
+const VOICE_RESTRICTION_RELEASE_DELAY = 2000;
 
 module.exports = async function Room(client, oldState, newState) {
     const document = await Settings.findOne({ id: oldState.guild.id });
@@ -11,7 +11,8 @@ module.exports = async function Room(client, oldState, newState) {
     const guild = client.guilds.cache.get(oldState.guild.id);
     if (!guild) return;
 
-    const member = newState.guild.members.cache.get(newState.id);
+    const member = newState.member || oldState.member || newState.guild.members.cache.get(newState.id);
+    if (!member) return;
     const roomControl = (document?.privateRooms || []).find(x => x.owner === member?.id);
     const oldRoom = (document?.privateRooms || []).find(x => x.channel === oldState.channelId);
     const newRoom = (document?.privateRooms || []).find(x => x.channel === newState.channelId);
@@ -32,7 +33,7 @@ module.exports = async function Room(client, oldState, newState) {
         if (restriction?.deaf && !newState.serverDeaf) await member.voice.setDeaf(true, 'Özel oda sağırlaştırma kaydı').catch(() => null);
     }
 
-    if (newRoom?.owner === member.id) {
+    if (newRoom?.owner === member.id && newState.channel) {
         await grantRoomOwnerVoicePermissions(newState.channel, member.id);
     }
 
@@ -61,7 +62,6 @@ module.exports = async function Room(client, oldState, newState) {
             allow: overwrite.allow.toArray(),
             deny: overwrite.deny.toArray()
         }));
-
 
         const xRole = newState.guild.roles.cache.find(r => r.name.toLowerCase().includes('giriş çıkış'));
         if (xRole) {

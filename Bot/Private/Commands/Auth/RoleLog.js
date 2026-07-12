@@ -10,11 +10,6 @@ module.exports = {
         if (!message.member.permissions.has(Flags.Administrator) && !wency.auth.some(x => message.member.roles.cache.has(x)))
             return message.reply({ content: 'Yetkin yok.' });
 
-        const types = {
-            'add': findEmoji(client, 'wencyUp') || '➕',
-            'remove': findEmoji(client, 'wencyDown') || '➖',
-        };
-
         const member = message.mentions.members.first() || message.guild.members.cache.get(args[0]) || message.member;
         if (!member) return client.embed(message, 'Geçerli bir üye belirtmelisiniz.');
 
@@ -23,8 +18,8 @@ module.exports = {
 
         let page = 1;
         const totalPages = Math.ceil(document.roleLogs.length / 10);
-        const datas = document.roleLogs.reverse().map(d =>
-            `${d.staff ? userMention(d.staff) : 'Bulunamadı.'} (${types[d.type]} | ${global.functions.date(d.date)}): ${d.roles.map(r => roleMention(r)).join(', ')}`
+        const datas = [...document.roleLogs].reverse().map(d =>
+            `${formatType(d.type)} ${d.staff ? userMention(d.staff) : 'Bulunamadı.'} (${global.functions.date(d.date)}): ${d.roles.map(r => roleMention(r)).join(', ')}`
         );
 
         const question = await message.channel.send({
@@ -63,6 +58,8 @@ module.exports = {
     }
 }
 
-function findEmoji(client, name) {
-    return client.emojis.cache.find(emoji => emoji.name === name);
+function formatType(type) {
+    if (type === 'add') return '`+` 🟢 **VERILDI**';
+    if (type === 'remove') return '`-` 🔴 **ALINDI**';
+    return '`?` ⚪ **BILINMIYOR**';
 }

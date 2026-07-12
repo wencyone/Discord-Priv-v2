@@ -1,8 +1,13 @@
 const { GuildAuditLogsEntry, Guild } = require('discord.js');
 const channelModel = require('../../../../../Schema/ChannelModel.js');
-const { checkWhitelist, createChannel } = require('../../../../Utils/Functions.js');
+const { checkWhitelist, createChannel, isPrivateRoomBackupChannel } = require('../../../../Utils/Functions.js');
 
 module.exports = async function channelDelete(client, guild = Guild.prototype, audit = GuildAuditLogsEntry.prototype, member, changes, wency) {
+	if (await isPrivateRoomBackupChannel(guild, audit?.target || audit?.targetId)) {
+		await channelModel.deleteOne({ guild: guild.id, channel: audit.targetId }).catch(() => null);
+		return;
+	}
+
 	const safeMode = await checkWhitelist(client, member, 'channel');
 	const isBlacklisted = (wency?.blackListedChannels || []).some((item) => (item?.id || item) === audit?.targetId);
 	if (safeMode?.isWarn && !isBlacklisted) {

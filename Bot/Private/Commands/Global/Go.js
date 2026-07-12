@@ -8,12 +8,32 @@ const {
     inlineCode
 } = require('discord.js');
 
-const PROTECTED_CHANNEL_ID = "YT ROLUNDEKI KISILERIN DAHI GIREMICEGI KANAL ID";
-const PROTECTED_ROLE_ID = "SADECE SECILEN KANALA GIREBILCEK ROL ID "; //eklenen kanalda biri var ise .git .cek ile girebilme icin buralarida doldur
+const PROTECTED_CHANNEL_ID = "1519790216901169323";
+const PROTECTED_ROLE_ID = "1475248069875466337"; //eklenen kanalda biri var ise .git .cek ile girebilme icin buralarida doldur
+const SUCCESS_EMOJI = '1054856853814788216';
+const CANCEL_EMOJI = '1057679211021746186';
  
 function grantVoiceProtectPass(memberId, channelId) {
     if (!global.voiceProtectPendingMoves) global.voiceProtectPendingMoves = new Map();
     global.voiceProtectPendingMoves.set(`${memberId}:${channelId}`, Date.now() + 1000 * 10);
+}
+
+async function grantPrivateRoomAccess(channel, ownerId, memberId, settings) {
+    const room = (settings?.privateRooms || []).find((item) => item.channel === channel?.id && item.owner === ownerId);
+    if (!room) return;
+
+    await channel.permissionOverwrites.edit(memberId, {
+        [PermissionsBitField.Flags.Connect]: true,
+        [PermissionsBitField.Flags.ViewChannel]: true,
+    }).catch(() => null);
+}
+
+async function reactResult(message, emojiId, fallback) {
+    await message.react(emojiId).catch(() => message.react(fallback).catch(() => null));
+}
+
+function deleteLater(message, delay = 5000) {
+    setTimeout(() => message.delete().catch(() => null), delay);
 }
 
 module.exports = {
@@ -73,13 +93,13 @@ module.exports = {
                 .setCustomId('accept')
                 .setLabel('Onayla')
                 .setStyle(ButtonStyle.Success)
-                .setEmoji('1054856853814788216'),
+                .setEmoji(SUCCESS_EMOJI),
 
             new ButtonBuilder()
                 .setCustomId('cancel')
                 .setLabel('Reddet')
                 .setStyle(ButtonStyle.Danger)
-                .setEmoji('1057679211021746186')
+                .setEmoji(CANCEL_EMOJI)
         );
 
         const question = await message.reply({
@@ -105,12 +125,60 @@ module.exports = {
 
             if (i.customId === 'accept') {
 
-                // KOMUTU KULLANAN KİŞİYİ HEDEFİN KANALINA TAŞIR
-                if (member.voice.channel.id === PROTECTED_CHANNEL_ID && member.roles.cache.has(PROTECTED_ROLE_ID)) {
-                    grantVoiceProtectPass(message.member.id, member.voice.channel.id);
+                const targetChannel = member.voice.channel;
+                const requesterChannel = message.member.voice.channel;
+
+                if (!targetChannel) {
+                    await reactResult(message, CANCEL_EMOJI, '❌');
+                    await i.update({
+                        embeds: [
+                            new EmbedBuilder().setDescription(
+                                `${member} artık bir ses kanalında değil.`
+                            ),
+                        ],
+                        components: [],
+                    });
+                    deleteLater(question);
+                    return;
                 }
 
-                await message.member.voice.setChannel(member.voice.channel.id);
+                if (!requesterChannel) {
+                    await reactResult(message, CANCEL_EMOJI, '❌');
+                    await i.update({
+                        embeds: [
+                            new EmbedBuilder().setDescription(
+                                `${message.member} artık bir ses kanalında değil.`
+                            ),
+                        ],
+                        components: [],
+                    });
+                    deleteLater(question);
+                    return;
+                }
+
+                // KOMUTU KULLANAN KİŞİYİ HEDEFİN KANALINA TAŞIR
+                if (targetChannel.id === PROTECTED_CHANNEL_ID && member.roles.cache.has(PROTECTED_ROLE_ID)) {
+                    grantVoiceProtectPass(message.member.id, targetChannel.id);
+                }
+
+                await grantPrivateRoomAccess(targetChannel, member.id, message.member.id, wency);
+                const moved = await message.member.voice.setChannel(targetChannel.id).catch(async () => {
+                    await reactResult(message, CANCEL_EMOJI, '❌');
+                    await i.update({
+                        embeds: [
+                            new EmbedBuilder().setDescription(
+                                `${message.member} ses kanalına taşınamadı.`
+                            ),
+                        ],
+                        components: [],
+                    });
+                    deleteLater(question);
+                    return null;
+                });
+
+                if (!moved) return;
+
+                await reactResult(message, SUCCESS_EMOJI, '✅');
 
                 await i.update({
                     embeds: [
@@ -120,8 +188,10 @@ module.exports = {
                     ],
                     components: [],
                 });
+                deleteLater(question);
 
             } else if (i.customId === 'cancel') {
+                await reactResult(message, CANCEL_EMOJI, '❌');
 
                 await i.update({
                     embeds: [
@@ -131,6 +201,7 @@ module.exports = {
                     ],
                     components: [],
                 });
+                deleteLater(question);
 
             }
 
@@ -147,6 +218,8 @@ module.exports = {
                         '5 dakika boyunca yanıt verilmediği için işlem iptal edildi.'
                     ),
                 });
+                await reactResult(message, CANCEL_EMOJI, '❌');
+                deleteLater(question);
 
             }
 

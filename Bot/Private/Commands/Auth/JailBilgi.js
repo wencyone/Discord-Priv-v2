@@ -32,7 +32,7 @@ module.exports = {
                 `• Yetkili: ${moderator ? `${moderator} (${moderator.id})` : punishment.moderatorId}`,
                 `• Sebep: ${punishment.reason}`,
                 `• Tarih: ${new Date(punishment.createdAt).toLocaleString('tr-TR')}`,
-                `• Bitiş: ${new Date(punishment.expiresAt).toLocaleString('tr-TR')}`
+                `• Bitiş: ${punishment.expiresAt ? new Date(punishment.expiresAt).toLocaleString('tr-TR') : 'Kalıcı'}`
             ].join('\n'))
             .setTimestamp(punishment.createdAt);
         if (user) embed.setThumbnail(user.displayAvatarURL({ extension: 'png', size: 4096 }));

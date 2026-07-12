@@ -1,6 +1,6 @@
 const { AttachmentBuilder } = require('discord.js');
 const CanvasUtil = require('../../../Base/CanvasUtil');
-const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../Base/FunUtils');
+const { formatDinar, getAccount, getEconomyBackground, getPrefix, updateAccount } = require('../../../Base/FunUtils');
 
 module.exports = {
     name: 'günlük',
@@ -17,7 +17,7 @@ module.exports = {
         if (remaining > 0) {
             const hours = Math.floor(remaining / 3600000);
             const minutes = Math.floor((remaining % 3600000) / 60000);
-            const buffer = await CanvasUtil.economyCard('GUNLUK ODUL', 'Henüz ödül zamanın gelmedi.', `Tekrar alabilmek için ${hours} sa ${minutes} dk bekle.`);
+            const buffer = await CanvasUtil.economyCard('GUNLUK ODUL', 'Henüz ödül zamanın gelmedi.', `Tekrar alabilmek için ${hours} sa ${minutes} dk bekle.`, getEconomyBackground(message.guild));
             return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'daily.png' })] });
         }
 
@@ -26,7 +26,7 @@ module.exports = {
             cash: account.coin + reward,
             dailyTimestamp: now,
         });
-        const buffer = await CanvasUtil.economyCard('GUNLUK ODUL', `${formatDinar(reward)} cüzdanına eklendi.`, `Yeni Bakiyen: ${formatDinar(updated.coin)}`);
+        const buffer = await CanvasUtil.economyCard('GUNLUK ODUL', `${formatDinar(reward)} cüzdanına eklendi.`, `Yeni Bakiyen: ${formatDinar(updated.coin)}`, getEconomyBackground(message.guild));
         return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'daily.png' })] });
     },
 };

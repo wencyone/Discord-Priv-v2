@@ -2,15 +2,17 @@ const { Client, GatewayIntentBits, Partials, ActivityType, Events, AuditLogEvent
 const config = require('../../../System');
 const { Driver } = require('cherry3');
 const { connectBotToVoice } = require('../../Base/VoiceConnection');
+const { attachClientErrorHandlers, startWithRetry } = require('../../Base/Startup');
 const { channelCreate, channelDelete, channelUpdate, channelOverwriteCreate, channelOverwriteDelete, channelOverwriteUpdate, emojiCreate, emojiDelete, emojiUpdate, roleCreate, roleDelete, roleUpdate, stickerCreate, stickerDelete, stickerUpdate, webhookCreate, webhookDelete, webhookUpdate, memberBan, memberUnban, memberKick, memberRoleUpdate, memberUpdate, guildUpdate, botAdd } = require('./Server Watcher');
 require('colors');
 const client = new Client({
-    intents: Object.keys(GatewayIntentBits),
-    partials: Object.keys(Partials),
-    rest: { version: 10, hashLifetime: Infinity },
+	intents: Object.keys(GatewayIntentBits),
+	partials: Object.keys(Partials),
+	rest: { version: 10, hashLifetime: Infinity },
 	presence: { status: config.Presence.Status, activities: [{ name: config.Presence.Message[Math.floor(Math.random() * config.Presence.Message.length)], type: config.Presence.Type, url: 'https://www.twitch.tv/wencycuk' }] },
-    ws: { version: 10, properties: { $browser: 'discord.js' } }
+	ws: { version: 10, properties: { $browser: 'discord.js' } }
 });
+attachClientErrorHandlers(client, 'Punish');
 
 
 client.on(Events.ClientReady, async () => {
@@ -55,15 +57,12 @@ client.on(Events.GuildAuditLogEntryCreate, async (audit, guild) => {
 });
 
 async function start() {
-    try {
+    await startWithRetry('Punish', async () => {
         await Driver.authenticate();
         console.log('[DATABASE] Ortak Guard veritabanı bağlantısı başarılı.');
         await client.login(config.Security.Punish);
         console.log(`[BOT] ${client.user.tag} olarak giriş yaptı!`);
-    } catch (error) {
-        console.error(`[STARTUP] Punish bot başlatılamadı: ${error.message}`);
-        process.exitCode = 1;
-    }
+    });
 }
 
 start();

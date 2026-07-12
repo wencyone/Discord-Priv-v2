@@ -4,12 +4,13 @@ const { checkWhitelist, date } = require('../../../../Utils/Functions.js');
 module.exports = async function emojiDelete(client, guild, audit, member, changes) {
   const logChannel = guild.channels.cache.find(c => c.name === 'guard-log') || client.users.cache.get(guild.ownerId);
   const safeMode = await checkWhitelist(client, member, 'emoji');
+  const emojiURL = getEmojiURL(audit.target);
 
   if (logChannel) logChannel.send({
     embeds: [
       new EmbedBuilder({
         title: 'Emoji Silindi!',
-        image: { url: audit.target.imageURL() },
+        image: emojiURL ? { url: emojiURL } : undefined,
         description: [
           codeBlock('yaml', [
             `→ İşlem Yapan Kişi: ${member?.user.username} (${member?.id})`,
@@ -28,3 +29,9 @@ module.exports = async function emojiDelete(client, guild, audit, member, change
     ]
   })
 };
+
+function getEmojiURL(emoji) {
+  if (!emoji?.id) return null;
+  if (typeof emoji.imageURL === 'function') return emoji.imageURL();
+  return `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
+}

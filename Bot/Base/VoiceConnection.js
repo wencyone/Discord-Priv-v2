@@ -8,16 +8,25 @@ const { ChannelType, PermissionFlagsBits } = require('discord.js');
 
 const reconnectTimers = new Map();
 const connectionPromises = new Map();
+const reconnectAttempts = new Map();
 
 function scheduleReconnect(client, guild, channelId, label, group) {
     const key = `${guild.id}:${group}`;
+    const attempts = (reconnectAttempts.get(key) || 0) + 1;
+    const delay = Math.min(300000, 15000 * attempts);
     clearTimeout(reconnectTimers.get(key));
+    reconnectAttempts.set(key, attempts);
     reconnectTimers.set(key, setTimeout(() => {
         reconnectTimers.delete(key);
         connectBotToVoice(client, guild, channelId, label).catch((error) => {
             console.error(`[VOICE] ${label}: yeniden bağlanma başarısız: ${error.message}`);
         });
-    }, 5000));
+    }, delay));
+    return delay;
+}
+
+function isTemporaryVoiceError(error) {
+    return /Unexpected server response: 52[0-4]|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i.test(error?.message || '');
 }
 
 async function connectBotToVoice(client, guild, channelId, label = 'Bot') {
@@ -70,11 +79,12 @@ async function connectBotToVoice(client, guild, channelId, label = 'Bot') {
         });
 
         connection.on('error', (error) => {
-            console.error(`[VOICE] ${label}: ${error.message}`);
+            if (!isTemporaryVoiceError(error)) console.error(`[VOICE] ${label}: ${error.message}`);
         });
 
         try {
             await entersState(connection, VoiceConnectionStatus.Ready, 30000);
+            reconnectAttempts.delete(key);
             console.log(`[VOICE] ${label}: ${channel.name} kanalına bağlandı.`);
 
             connection.on(VoiceConnectionStatus.Disconnected, async () => {
@@ -93,8 +103,13 @@ async function connectBotToVoice(client, guild, channelId, label = 'Bot') {
         } catch (error) {
             if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
             const reason = error?.name === 'AbortError' ? 'bağlantı zaman aşımına uğradı' : error.message;
-            console.error(`[VOICE] ${label}: bağlantı kurulamadı: ${reason}`);
-            scheduleReconnect(client, guild, channelId, label, group);
+            const delay = scheduleReconnect(client, guild, channelId, label, group);
+            const retryText = `${Math.round(delay / 1000)} saniye sonra tekrar denenecek`;
+            if (isTemporaryVoiceError(error)) {
+                console.warn(`[VOICE] ${label}: Discord voice gateway gecici hata verdi (${reason}), ${retryText}.`);
+            } else {
+                console.error(`[VOICE] ${label}: bağlantı kurulamadı: ${reason}, ${retryText}.`);
+            }
             return null;
         }
     })();

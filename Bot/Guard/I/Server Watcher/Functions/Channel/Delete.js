@@ -1,8 +1,10 @@
 const { EmbedBuilder, codeBlock } = require('discord.js');
-const { checkWhitelist, date } = require('../../../../Utils/Functions.js');
+const { checkWhitelist, date, isPrivateRoomBackupChannel } = require('../../../../Utils/Functions.js');
 const channelTypes = { 2: 'Ses Kanalı', 0: 'Yazı Kanalı', 5: 'Duyuru Kanalı', 4: 'Kategori', 13: 'Sahne', 15: 'Forum' };
 
 module.exports = async function channelDelete(client, guild, audit, member, changes) {
+  if (await isPrivateRoomBackupChannel(guild, audit?.target || audit?.targetId)) return;
+
   const logChannel = guild.channels.cache.find(c => c.name === 'guard-log') || client.users.cache.get(guild.ownerId);
   const safeMode = await checkWhitelist(client, member, 'channel');
 

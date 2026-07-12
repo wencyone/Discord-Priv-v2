@@ -32,19 +32,50 @@ async function createBase(title, subtitle = '', backgroundURL = DEFAULT_BACKGROU
 
     drawSoftCircles(ctx);
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 40px Sans';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(title, 42, 64);
-
-    if (subtitle) {
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = '22px Sans';
-        ctx.fillText(subtitle, 42, 98);
-    }
+    drawCanvasHeader(ctx, title, subtitle);
 
     return { canvas, ctx };
+}
+
+function drawCanvasHeader(ctx, title, subtitle = '') {
+    ctx.save();
+
+    ctx.font = 'bold 32px Sans';
+    const titleText = String(title || '').toUpperCase();
+    const titleWidth = Math.min(520, Math.max(250, ctx.measureText(titleText).width + 72));
+    const titleX = (WIDTH - titleWidth) / 2;
+
+    roundRect(ctx, titleX, 16, titleWidth, 48, 16);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(titleText, WIDTH / 2, 40);
+
+    if (subtitle) {
+        const subtitleText = String(subtitle);
+        ctx.font = 'bold 18px Sans';
+        const subtitleWidth = Math.min(330, Math.max(190, ctx.measureText(subtitleText).width + 44));
+        const subtitleX = (WIDTH - subtitleWidth) / 2;
+
+        roundRect(ctx, subtitleX, 70, subtitleWidth, 30, 13);
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.72)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = '#fde68a';
+        ctx.textAlign = 'center';
+        ctx.fillText(subtitleText, subtitleX + subtitleWidth / 2, 85);
+    }
+
+    ctx.restore();
 }
 
 function drawDefaultBackground(ctx) {
@@ -177,6 +208,82 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 5) {
 
     lines.forEach((l, index) => {
         ctx.fillText(l, x, y + index * lineHeight);
+    });
+}
+
+function getCardSuit(card) {
+    const suits = {
+        hearts: { symbol: '♥', color: '#dc2626' },
+        diamonds: { symbol: '♦', color: '#dc2626' },
+        clubs: { symbol: '♣', color: '#111827' },
+        spades: { symbol: '♠', color: '#111827' },
+    };
+
+    return suits[card?.suit] || suits.spades;
+}
+
+function drawPlayingCard(ctx, card, x, y, width = 58, height = 82) {
+    ctx.save();
+
+    roundRect(ctx, x, y, width, height, 9);
+
+    if (card?.hidden) {
+        ctx.fillStyle = '#1e3a8a';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        roundRect(ctx, x + 8, y + 8, width - 16, height - 16, 7);
+        ctx.strokeStyle = 'rgba(255,255,255,0.38)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        centerText(ctx, '?', x, y + height / 2, width, 'bold 34px Sans', '#ffffff');
+        ctx.restore();
+        return;
+    }
+
+    const suit = getCardSuit(card);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(15,23,42,0.45)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = suit.color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = 'bold 20px Sans';
+    ctx.fillText(String(card?.value || '?'), x + 8, y + 7);
+
+    ctx.font = '26px Sans';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(suit.symbol, x + width / 2, y + height / 2 + 5);
+
+    ctx.translate(x + width - 8, y + height - 7);
+    ctx.rotate(Math.PI);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = 'bold 20px Sans';
+    ctx.fillText(String(card?.value || '?'), 0, 0);
+
+    ctx.restore();
+}
+
+function drawCardHand(ctx, hand, x, y, maxWidth) {
+    const cards = hand || [];
+    const cardWidth = 58;
+    const cardHeight = 82;
+    const defaultGap = 14;
+    const gap = cards.length > 1
+        ? Math.min(defaultGap, Math.max(4, (maxWidth - cardWidth) / (cards.length - 1) - cardWidth))
+        : defaultGap;
+
+    cards.forEach((card, index) => {
+        drawPlayingCard(ctx, card, x + index * (cardWidth + gap), y, cardWidth, cardHeight);
     });
 }
 
@@ -486,30 +593,20 @@ async function blackjackCard(
 ) {
     const { canvas, ctx } = await createBase(
         'BLACKJACK',
-        `Bahis: ${Number(bet).toLocaleString('tr-TR')} Dinar`,
+        `Bahis Miktari: ${Number(bet).toLocaleString('tr-TR')} Dinar`,
         backgroundURL
     );
 
-    drawPanel(ctx, 70, 105, 760, 90);
-    drawPanel(ctx, 70, 220, 760, 90);
+    drawPanel(ctx, 70, 105, 760, 95);
+    drawPanel(ctx, 70, 220, 760, 95);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 22px Sans';
     ctx.fillText(`Dealer (${dealerScore})`, 100, 135);
     ctx.fillText(`Sen (${playerScore})`, 100, 250);
 
-    ctx.fillStyle = '#e5e7eb';
-    ctx.font = '24px monospace';
-    ctx.fillText(
-        dealerHand.map((c) => (c.hidden ? '??' : c.value)).join('  '),
-        100,
-        172
-    );
-    ctx.fillText(
-        playerHand.map((c) => c.value).join('  '),
-        100,
-        287
-    );
+    drawCardHand(ctx, dealerHand, 280, 112, 300);
+    drawCardHand(ctx, playerHand, 280, 227, 300);
 
     centerText(
         ctx,

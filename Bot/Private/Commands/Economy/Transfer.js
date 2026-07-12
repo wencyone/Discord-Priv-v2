@@ -1,6 +1,6 @@
 const { AttachmentBuilder } = require('discord.js');
 const CanvasUtil = require('../../../Base/CanvasUtil');
-const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../Base/FunUtils');
+const { formatDinar, getAccount, getEconomyBackground, getPrefix, updateAccount } = require('../../../Base/FunUtils');
 
 module.exports = {
     name: 'transfer',
@@ -23,7 +23,7 @@ module.exports = {
         await updateAccount(message.author.id, { cash: sender.coin - amount });
         await updateAccount(target.id, { cash: receiver.coin + amount });
 
-        const buffer = await CanvasUtil.economyCard('TRANSFER BASARILI', `${formatDinar(amount)} transfer edildi.`, `Alıcı: ${target.user.username}`);
+        const buffer = await CanvasUtil.economyCard('TRANSFER BASARILI', `${formatDinar(amount)} transfer edildi.`, `Alıcı: ${target.user.username}`, getEconomyBackground(message.guild));
         return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'transfer.png' })] });
     },
 };

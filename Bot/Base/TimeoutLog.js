@@ -9,23 +9,24 @@ const {
 async function sendTimeoutLog(guild, member, moderator, options) {
     const channel = guild.channels.cache.find((item) => item.name === 'mute-log');
     if (!channel?.isTextBased()) return;
+    const isRemove = options.action === 'remove';
 
     const fields = [
-        '# 🔇 Kullanıcı Susturuldu',
-        `${member} kullanıcısına **timeout uygulandı**`,
+        isRemove ? '# 🔊 Kullanıcı Susturması Kaldırıldı' : '# 🔇 Kullanıcı Susturuldu',
+        isRemove ? `${member} kullanıcısının **timeout'u kaldırıldı**` : `${member} kullanıcısına **timeout uygulandı**`,
         '',
         `**İşlem Türü:** ${options.source}`,
         `**Yetkili:** <@${moderator.id}>`,
-        `**Süre:** ${formatDuration(options.duration)}`,
-        `**Sebep:** ${options.reason || 'Sebep belirtilmedi'}`,
     ];
 
+    if (!isRemove) fields.push(`**Süre:** ${formatDuration(options.duration)}`);
+    fields.push(`**Sebep:** ${options.reason || 'Sebep belirtilmedi'}`);
     if (options.caseId) fields.push(`**Ceza Numarası:** #${options.caseId}`);
     if (options.expiresAt) fields.push(`**Bitiş:** <t:${Math.floor(options.expiresAt.getTime() / 1000)}:F>`);
     fields.push('', `**ID:** ${member.id} • <t:${Math.floor(Date.now() / 1000)}:F>`);
 
     const container = new ContainerBuilder()
-        .setAccentColor(0xed4245)
+        .setAccentColor(isRemove ? 0x57f287 : 0xed4245)
         .addSectionComponents(
             new SectionBuilder()
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent(fields.join('\n')))

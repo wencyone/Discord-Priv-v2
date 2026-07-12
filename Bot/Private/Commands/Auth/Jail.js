@@ -28,15 +28,22 @@ module.exports = {
         if (activeJail) return message.reply({ content: 'Bu kullanıcı zaten jailde.' });
 
         const reason = args.slice(1).join(' ') || 'Sebep belirtilmedi';
-        const options = Array.from({ length: 14 }, (_, index) => ({
-            label: `${index + 1} Gün`,
-            value: String(index + 1),
-            emoji: '📅'
-        }));
+        const options = [
+            {
+                label: 'Kalıcı',
+                value: 'permanent',
+                emoji: '🔒'
+            },
+            ...Array.from({ length: 14 }, (_, index) => ({
+                label: `${index + 1} Gün`,
+                value: String(index + 1),
+                emoji: '📅'
+            }))
+        ];
         const row = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder().setCustomId('jail_duration').setPlaceholder('Jail süresini seç...').addOptions(options)
         );
-        const question = await message.reply({ content: `${member} için 1-14 gün arası jail süresi seç.`, components: [row] });
+        const question = await message.reply({ content: `${member} için jail süresini seç.`, components: [row] });
         const collector = question.createMessageComponentCollector({
             filter: (interaction) => interaction.user.id === message.author.id,
             componentType: ComponentType.StringSelect,
@@ -46,14 +53,16 @@ module.exports = {
 
         collector.on('collect', async (interaction) => {
             try {
-                const days = Number(interaction.values[0]);
-                if (!Number.isInteger(days) || days < 1 || days > 14) return interaction.reply({ content: 'Geçersiz süre.', flags: 64 });
+                const selected = interaction.values[0];
+                const isPermanent = selected === 'permanent';
+                const days = Number(selected);
+                if (!isPermanent && (!Number.isInteger(days) || days < 1 || days > 14)) return interaction.reply({ content: 'Geçersiz süre.', flags: 64 });
 
                 const previousRoles = member.roles.cache
                     .filter((role) => role.id !== message.guild.id && !role.managed && role.id !== jailRole.id)
                     .map((role) => role.id);
                 const previousNickname = member.nickname;
-                const duration = days * 24 * 60 * 60 * 1000;
+                const duration = isPermanent ? 0 : days * 24 * 60 * 60 * 1000;
                 const counter = await PunishmentCounter.findOneAndUpdate(
                     { guildId: message.guild.id },
                     { $inc: { caseId: 1 } },
@@ -67,7 +76,7 @@ module.exports = {
                     type: 'jail',
                     reason,
                     duration,
-                    expiresAt: new Date(Date.now() + duration),
+                    expiresAt: isPermanent ? null : new Date(Date.now() + duration),
                     previousRoles,
                     previousNickname
                 });
@@ -83,7 +92,7 @@ module.exports = {
                     throw error;
                 }
 
-                await interaction.update({ content: `${member} kullanıcısı ${days} gün jail'e atıldı. (Ceza Numarası: #${punishment.caseId})`, components: [] });
+                await interaction.update({ content: `${member} kullanıcısı ${isPermanent ? 'kalıcı' : `${days} gün`} jail'e atıldı. (Ceza Numarası: #${punishment.caseId})`, components: [] });
                 const logChannel = message.guild.channels.cache.find((channel) => channel.name === 'jail-log');
                 if (logChannel) {
                     const embed = new EmbedBuilder()
@@ -93,9 +102,9 @@ module.exports = {
                             { name: 'Kullanıcı', value: `${member} (\`${member.id}\`)` },
                             { name: 'Ceza Numarası', value: `#${punishment.caseId}`, inline: true },
                             { name: 'Yetkili', value: `${message.author} (\`${message.author.id}\`)`, inline: true },
-                            { name: 'Süre', value: `${days} gün`, inline: true },
+                            { name: 'Süre', value: isPermanent ? 'Kalıcı' : `${days} gün`, inline: true },
                             { name: 'Sebep', value: reason },
-                            { name: 'Bitiş', value: `<t:${Math.floor(punishment.expiresAt.getTime() / 1000)}:F>` }
+                            { name: 'Bitiş', value: isPermanent ? 'Yok' : `<t:${Math.floor(punishment.expiresAt.getTime() / 1000)}:F>` }
                         )
                         .setTimestamp();
                     await logChannel.send({ embeds: [embed] }).catch(() => null);

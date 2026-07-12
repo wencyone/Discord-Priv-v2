@@ -1,6 +1,6 @@
 const { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const CanvasUtil = require('../../../Base/CanvasUtil');
-const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../Base/FunUtils');
+const { formatDinar, getAccount, getEconomyBackground, getPrefix, updateAccount } = require('../../../Base/FunUtils');
 
 module.exports = {
     name: 'blackjack',
@@ -40,6 +40,7 @@ module.exports = {
         const dealerHand = [deck.pop(), { ...deck.pop(), hidden: true }];
         let status = 'devam';
         let gameOver = false;
+        const background = getEconomyBackground(message.guild);
 
         const controls = () => {
             const row = new ActionRowBuilder().addComponents(
@@ -49,7 +50,7 @@ module.exports = {
             if (account.coin >= bet * 2) row.addComponents(new ButtonBuilder().setCustomId('bj_double').setLabel('İkiye Katla').setStyle(ButtonStyle.Success));
             return [row];
         };
-        const render = async () => new AttachmentBuilder(await CanvasUtil.blackjackCard(dealerHand, playerHand, dealerHand[1].hidden ? getScore([dealerHand[0]]) : getScore(dealerHand), getScore(playerHand), status, bet), { name: 'blackjack.png' });
+        const render = async () => new AttachmentBuilder(await CanvasUtil.blackjackCard(dealerHand, playerHand, dealerHand[1].hidden ? getScore([dealerHand[0]]) : getScore(dealerHand), getScore(playerHand), status, bet, background), { name: 'blackjack.png' });
         const finish = async () => {
             dealerHand[1].hidden = false;
             gameOver = true;

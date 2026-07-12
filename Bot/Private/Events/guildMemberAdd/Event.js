@@ -4,6 +4,7 @@ const Punishment = require('../../../Schema/Punishment');
 const { releaseJail } = require('../../../Base/Jail');
 const { createMemberLog } = require('../../../Base/MemberLog');
 const { syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
+const { syncGuildTagRole } = require('../../../Base/GuildTagRole');
 
 client.on(Events.GuildMemberAdd, async (member) => {
 
@@ -20,6 +21,11 @@ client.on(Events.GuildMemberAdd, async (member) => {
             return 'blocked';
         });
         if (tagStatus === 'jailed' || tagStatus === 'blocked' || tagStatus === 'released') return;
+    }
+
+    if (document.guildTagRole) {
+        const user = await client.users.fetch(member.id, { force: true }).catch(() => member.user);
+        await syncGuildTagRole(member, document, user).catch((error) => console.error('[GUILD_TAG_ROLE_JOIN]', error));
     }
 
     const activeJail = await Punishment.findOne({

@@ -29,6 +29,7 @@ module.exports = {
         const eDeny = findEmoji(client, 'wencyDeny') || '🔕';
         const eCrown = findEmoji(client, 'wencyCrown') || '👑';
         const eTrash = findEmoji(client, 'wencyTrash') || '🗑️';
+        const eTop = '⬆️';
 
         const rows = [
             new ActionRowBuilder().addComponents(
@@ -82,19 +83,26 @@ module.exports = {
                 .setLabel('Odayı Sil')
                 .setStyle(ButtonStyle.Danger),
             ),
+            new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('moveRoomTop')
+                .setEmoji(eTop)
+                .setLabel('Odayı Üste Taşı')
+                .setStyle(ButtonStyle.Secondary),
+            ),
         ];
 
         const container = new ContainerBuilder()
             .setAccentColor(0xe91e63)
             .addTextDisplayComponents(new TextDisplayBuilder().setContent([
-                `# ‪‪❤︎‬ ${message.guild.name} Özel Oda Paneli`,
+                `# ${message.guild.name} Özel Oda Paneli`,
                 'Kendine ait ses odanı oluşturabilir ve tüm ayarlarını bu panelden yönetebilirsin.',
             ].join('\n')))
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
             .addTextDisplayComponents(new TextDisplayBuilder().setContent([
                 '## 🎧 Özel Oda Oluşturma',
                 `${wency.secretRoomChannel ? `<#${wency.secretRoomChannel}>` : '**Özel Oda Oluştur**'} kanalına katıldığında odan otomatik oluşturulur.`,
-                'Odanın adı `‪‪❤︎‬ {isim}` formatında açılır.',
+                'Odanın adı `{isim}` formatında açılır.',
             ].join('\n')))
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
             .addTextDisplayComponents(new TextDisplayBuilder().setContent([
@@ -108,6 +116,8 @@ module.exports = {
                 `${displayEmoji(eVisible, 'wencyVisible', '👁️')} **Görünürlük** — yalnız booster üyeler odanın görünürlüğünü değiştirebilir.`,
                 `${displayEmoji(eCrown, 'wencyCrown', '👑')} **Devret** — oda sahipliğini seçtiğin üyeye aktarır.`,
                 `${displayEmoji(eTrash, 'wencyTrash', '🗑️')} **Odayı Sil** — özel odanı tamamen kaldırır.`,
+                `${eTop} **Odayı Üste Taşı** — yalnız guild tag alan üyeler 1 saatte bir kullanabilir.`,
+                ``,
                 '-# Oda sahibinin uyguladığı ses kısıtlamaları, üye odadan ayrıldıktan 5 saniye sonra kaldırılır.',
             ].join('\n')))
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));

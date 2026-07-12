@@ -1,6 +1,6 @@
 const { AttachmentBuilder } = require('discord.js');
 const CanvasUtil = require('../../../Base/CanvasUtil');
-const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../Base/FunUtils');
+const { formatDinar, getAccount, getEconomyBackground, getPrefix, updateAccount } = require('../../../Base/FunUtils');
 
 module.exports = {
     name: 'slot',
@@ -17,16 +17,17 @@ module.exports = {
 
         const slots = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣'];
         const generateRandom = () => [0, 1, 2].map(() => slots[Math.floor(Math.random() * slots.length)]);
+        const background = getEconomyBackground(message.guild);
 
         const msg = await message.reply({
             content: 'Slotlar dönüyor...',
-            files: [new AttachmentBuilder(await CanvasUtil.slotCard(generateRandom(), 'dönüyor', 0), { name: 'slot-spin.png' })],
+            files: [new AttachmentBuilder(await CanvasUtil.slotCard(generateRandom(), 'dönüyor', 0, background), { name: 'slot-spin.png' })],
         });
 
         for (let i = 0; i < 3; i++) {
             await new Promise((resolve) => setTimeout(resolve, 400));
             await msg.edit({
-                files: [new AttachmentBuilder(await CanvasUtil.slotCard(generateRandom(), 'dönüyor', 0), { name: 'slot-spin.png' })],
+                files: [new AttachmentBuilder(await CanvasUtil.slotCard(generateRandom(), 'dönüyor', 0, background), { name: 'slot-spin.png' })],
             }).catch(() => {});
         }
 
@@ -36,7 +37,7 @@ module.exports = {
         const updated = await updateAccount(message.author.id, {
             cash: isWin ? account.coin + finalReward : Math.max(0, account.coin - amount),
         });
-        const buffer = await CanvasUtil.slotCard(result, isWin ? 'kazandı' : 'kaybetti', isWin ? finalReward : amount);
+        const buffer = await CanvasUtil.slotCard(result, isWin ? 'kazandı' : 'kaybetti', isWin ? finalReward : amount, background);
 
         return msg.edit({
             content: isWin

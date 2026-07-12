@@ -14,17 +14,18 @@ const EmojiUpdateTitles = {
 module.exports = async function emojiUpdate(client, guild, audit, member, changes) {
   const logChannel = guild.channels.cache.find(c => c.name === 'guard-log') || client.users.cache.get(guild.ownerId);
   const safeMode = await checkWhitelist(client, member, 'emoji');
+  const emojiURL = getEmojiURL(audit.target);
 
   if (logChannel) logChannel.send({
     embeds: [
       new EmbedBuilder({
         title: 'Emoji Güncellendi!',
-        image: { url: audit.target.imageURL() },
+        image: emojiURL ? { url: emojiURL } : undefined,
         description: [
           codeBlock('yaml', [
             `→ İşlem Yapan Kişi: ${member?.user.username} (${member?.id})`,
             `→ Güvenlik Durumu: ${safeMode ? '🟢 Güvenli Listede' : '🔴 Güvenli Değil'}`,
-            `→ Emoji Bilgileri: ${target.name} (${target.id})`,
+            `→ Emoji Bilgileri: ${audit.target?.name || 'Bilinmiyor'} (${audit.target?.id || 'Bilinmiyor'})`,
             `→ İşlem Tarihi: ${date(Date.now())}`,
             `→ Güvenlik Durumu: ${safeMode?.whitelistType || 'Güvenli Değil'}`,
             `→ Limit Durumu: ${safeMode?.limitType || 'Limit Aşıldı'} [${safeMode?.limitRatio || 'Cezalandırıldı'}]`,
@@ -40,3 +41,9 @@ module.exports = async function emojiUpdate(client, guild, audit, member, change
     ]
   })
 };
+
+function getEmojiURL(emoji) {
+  if (!emoji?.id) return null;
+  if (typeof emoji.imageURL === 'function') return emoji.imageURL();
+  return `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
+}

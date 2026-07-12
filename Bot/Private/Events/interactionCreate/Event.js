@@ -2,9 +2,24 @@ const { Events, ModalBuilder, ActionRowBuilder, TextInputStyle, TextInputBuilder
 const Settings = require('../../../Schema/Settings');
 const { handleGiveawayButton } = require('../../../Base/Giveaway');
 const { formatPrivateRoomName } = require('../../../Base/PrivateRoom');
+const { getUserGuildTag } = require('../../../Base/GuildTagRole');
 
 const inviteRegex = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discordapp\.com\/invite)\/([a-zA-Z0-9\-]{2,32})\b/;
 const adsRegex = /([^a-zA-ZIıİiÜüĞğŞşÖöÇç\s])+/gi;
+const roomContextCommand = 'Özel Oda Paneli';
+const roomContextActions = {
+    changeName: 'İsim Değiştir',
+    changeLimit: 'Limit Ayarla',
+    roomInfo: 'Oda Bilgisi',
+    lockOrUnlock: 'Kilitle / Aç',
+    addOrRemove: 'Üye İzni',
+    denyMember: 'Üyeyi Yasakla',
+    visibleOrInvisible: 'Görünürlük',
+    transferOwner: 'Devret',
+    deleteRoom: 'Odayı Sil',
+    moveRoomTop: 'Odayı Üste Taşı',
+};
+const ROOM_TOP_COOLDOWN = 60 * 60 * 1000;
 const roles = {
     gri: 'Gri',
     siyah: 'Siyah',
@@ -35,7 +50,16 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
         return handleColorRole(i, i.values[0]);
     }
 
+    if (i.isUserContextMenuCommand() && i.commandName === roomContextCommand) {
+        return sendRoomContextPanel(i, document);
+    }
+
     if (i.isButton()) {
+
+        if (i.customId.startsWith('roomctx:')) {
+            const [, action, targetId] = i.customId.split(':');
+            return handleRoomContextCommand(i, document, action, targetId);
+        }
 
         if (['register', 'man', 'woman'].includes(i.customId)) {
             return i.reply({ content: 'Butonlu kayıt sistemi kapalıdır.', flags: 64 }).catch(() => null);
@@ -199,9 +223,13 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                     new ActionRowBuilder().setComponents(new TextInputBuilder().setCustomId('channelName').setLabel('Oda ismini giriniz.').setStyle(TextInputStyle.Short)),
                 );
 
-            i.showModal(row)
+            await i.showModal(row)
 
-            const modalCollected = await i.awaitModalSubmit({ time: 1000 * 60 * 2 });
+            const modalCollected = await i.awaitModalSubmit({
+                time: 1000 * 60 * 2,
+                filter: (interaction) => interaction.customId === 'changingName' && interaction.user.id === i.user.id
+            }).catch(() => null);
+            if (!modalCollected) return;
             const channelName = modalCollected.fields.getTextInputValue('channelName');
 
             if (modalCollected) {
@@ -505,8 +533,11 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                     value: user.id
                 }));
 
+            const removePermissionId = `remove_permission:${i.id}`;
+            const addPermissionId = `add_permission:${i.id}`;
+
             const stringSelectMenu = new StringSelectMenuBuilder({
-                customId: 'remove_permission',
+                customId: removePermissionId,
                 placeholder: 'Özel odaya izinli kullanıcılar',
                 options: allowedOptions.slice(0, 25).length > 0 ? allowedOptions.slice(0, 25) : [{
                     label: 'Kimse mevcut değil',
@@ -517,7 +548,7 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
             });
 
             const userSelectMenu = new UserSelectMenuBuilder({
-                customId: 'add_permission',
+                customId: addPermissionId,
                 placeholder: 'Üye seç.',
                 maxValues: 1
             });
@@ -532,26 +563,29 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
             });
 
             const collector = i.channel.createMessageComponentCollector({
-                filter: i => i.user.id === i.user.id,
-                time: 60000
+                filter: (x) => x.user.id === i.user.id && [removePermissionId, addPermissionId].includes(x.customId),
+                time: 60000,
+                max: 1
             });
 
-            collector.on('collect', async i => {
-                if (i.customId === 'remove_permission') {
-                    const userId = i.values[0];
+            collector.on('collect', async (x) => {
+                if (x.customId === removePermissionId) {
+                    const userId = x.values[0];
+                    if (userId === 'none') return await x.update({ content: 'Odaya izinli kullanıcı yok.', components: [] }).catch(() => null);
+
                     await channel.permissionOverwrites.edit(userId, {
                         [PermissionFlagsBits.Connect]: false
                     });
-                    await i.update({
+                    await x.update({
                         content: `<@${userId}> kullanıcısının özel oda izni kaldırıldı.`,
                         components: []
                     });
-                } else if (i.customId === 'add_permission') {
-                    const userId = i.values[0];
+                } else if (x.customId === addPermissionId) {
+                    const userId = x.values[0];
                     await channel.permissionOverwrites.edit(userId, {
                         [PermissionFlagsBits.Connect]: true
                     });
-                    await i.update({
+                    await x.update({
                         content: `<@${userId}> kullanıcısına özel odaya bağlanma izni verildi.`,
                         components: []
                     });
@@ -684,6 +718,14 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
             await channel.delete().catch(() => null);
         }
 
+        if (i.customId === 'moveRoomTop') {
+            if (!member.voice.channel) return await i.reply({ content: `Geçerli bir ses kanalında değilsiniz. Lütfen <#${document.secretRoomChannel}> kanalına giriş yapın.`, flags: 64 });
+            if (channel?.parentId !== document.secretRoomParent) return await i.reply({ content: `Bu işlem sadece özel oda kanallarında kullanılabilir: <#${document.secretRoomChannel}>`, flags: 64 });
+            if (!isOwner) return await i.reply({ content: 'Bu komutu yalnızca oda sahibi kullanabilir.', flags: 64 });
+
+            return moveRoomTop(i, member, channel);
+        }
+
         if (i.customId === 'claimOwnership') {
             if (!member.voice.channel) return await i.update({
                 embeds: [
@@ -738,4 +780,297 @@ async function handleColorRole(interaction, selectedColor) {
 
     await interaction.member.roles.add(selectedRole).catch(() => null);
     return interaction.reply({ content: `${selectedRole.name} renk rolü verildi.`, flags: 64 }).catch(() => null);
+}
+
+async function getRoomContext(interaction, document, targetId = interaction.targetId) {
+    const member = interaction.guild.members.cache.get(interaction.user.id)
+        || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!member?.voice?.channel) return { error: `Geçerli bir ses kanalında değilsiniz. Lütfen <#${document.secretRoomChannel}> kanalına giriş yapın.` };
+
+    const channel = interaction.guild.channels.cache.get(member.voice.channelId);
+    if (channel?.parentId !== document.secretRoomParent) {
+        return { error: `Bu işlem sadece özel oda kanallarında kullanılabilir: <#${document.secretRoomChannel}>` };
+    }
+
+    const room = (document.privateRooms || []).find((item) => item.channel === channel.id);
+    if (!room) return { error: 'Bu oda özel oda sisteminde kayıtlı değil.' };
+    if (room.owner !== member.id) return { error: 'Bu işlemi yalnızca oda sahibi kullanabilir.' };
+
+    const target = await interaction.guild.members.fetch(targetId).catch(() => null);
+    if (!target) return { error: 'Seçilen kullanıcı bulunamadı.' };
+
+    return { member, channel, room, target };
+}
+
+async function sendRoomContextPanel(interaction, document) {
+    const context = await getRoomContext(interaction, document);
+    if (context.error) return interaction.reply({ content: context.error, flags: 64 }).catch(() => null);
+
+    const { target } = context;
+    const targetId = target.id;
+    const rows = [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`roomctx:changeName:${targetId}`).setLabel('İsim Değiştir').setEmoji('✏️').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`roomctx:changeLimit:${targetId}`).setLabel('Limit Ayarla').setEmoji('👥').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`roomctx:roomInfo:${targetId}`).setLabel('Oda Bilgisi').setEmoji('📋').setStyle(ButtonStyle.Secondary),
+        ),
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`roomctx:lockOrUnlock:${targetId}`).setLabel('Kilitle / Aç').setEmoji('🔒').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`roomctx:addOrRemove:${targetId}`).setLabel('Üye İzni').setEmoji('🧩').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`roomctx:denyMember:${targetId}`).setLabel('Üyeyi Yasakla').setEmoji('🔕').setStyle(ButtonStyle.Secondary),
+        ),
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`roomctx:visibleOrInvisible:${targetId}`).setLabel('Görünürlük').setEmoji('👁️').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`roomctx:transferOwner:${targetId}`).setLabel('Devret').setEmoji('👑').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`roomctx:deleteRoom:${targetId}`).setLabel('Odayı Sil').setEmoji('🗑️').setStyle(ButtonStyle.Danger),
+        ),
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`roomctx:moveRoomTop:${targetId}`).setLabel('Odayı Üste Taşı').setEmoji('⬆️').setStyle(ButtonStyle.Secondary),
+        ),
+    ];
+
+    return interaction.reply({
+        content: `${target} için özel oda işlemini seç.`,
+        components: rows,
+        flags: 64,
+        allowedMentions: { parse: [], users: [], roles: [] },
+    }).catch(() => null);
+}
+
+async function handleRoomContextCommand(interaction, document, action, targetId) {
+    const context = await getRoomContext(interaction, document, targetId);
+    if (context.error) return interaction.reply({ content: context.error, flags: 64 }).catch(() => null);
+
+    const { member, channel, target } = context;
+    const commandName = roomContextActions[action];
+    if (!commandName) return interaction.reply({ content: 'Geçersiz özel oda işlemi.', flags: 64 }).catch(() => null);
+
+    if (commandName === 'İsim Değiştir') {
+        const modal = new ModalBuilder()
+            .setTitle('İsim Değiştir')
+            .setCustomId(`room_context_name:${interaction.id}`)
+            .setComponents(
+                new ActionRowBuilder().setComponents(
+                    new TextInputBuilder()
+                        .setCustomId('channelName')
+                        .setLabel('Oda ismini giriniz.')
+                        .setStyle(TextInputStyle.Short)
+                )
+            );
+
+        await interaction.showModal(modal);
+        const submitted = await interaction.awaitModalSubmit({
+            time: 1000 * 60 * 2,
+            filter: (item) => item.user.id === interaction.user.id && item.customId === `room_context_name:${interaction.id}`,
+        }).catch(() => null);
+        if (!submitted) return;
+
+        const channelName = submitted.fields.getTextInputValue('channelName');
+        if (channelName.match(inviteRegex)) return submitted.reply({ content: 'Özel oda isminde link kullanamazsınız.', flags: 64 });
+        if (channelName.match(adsRegex)) return submitted.reply({ content: 'Özel oda isminde reklam yapamazsınız.', flags: 64 });
+
+        const formattedChannelName = formatPrivateRoomName(channelName);
+        await channel.setName(formattedChannelName).catch((err) => console.error(err));
+        return submitted.reply({ content: `Oda ismi başarıyla değiştirildi: ${bold(formattedChannelName)}`, flags: 64 }).catch(() => null);
+    }
+
+    if (commandName === 'Limit Ayarla') {
+        const modal = new ModalBuilder()
+            .setTitle('Limit Değiştir')
+            .setCustomId(`room_context_limit:${interaction.id}`)
+            .setComponents(
+                new ActionRowBuilder().setComponents(
+                    new TextInputBuilder()
+                        .setCustomId('channelLimit')
+                        .setLabel('Oda limitini giriniz.')
+                        .setStyle(TextInputStyle.Short)
+                )
+            );
+
+        await interaction.showModal(modal);
+        const submitted = await interaction.awaitModalSubmit({
+            time: 1000 * 60 * 2,
+            filter: (item) => item.user.id === interaction.user.id && item.customId === `room_context_limit:${interaction.id}`,
+        }).catch(() => null);
+        if (!submitted) return;
+
+        const channelLimit = submitted.fields.getTextInputValue('channelLimit');
+        const limit = Number(channelLimit);
+        if (!Number.isInteger(limit) || limit < 0 || limit > 99) return submitted.reply({ content: 'Geçerli bir limit belirtmelisiniz. (0-99)', flags: 64 });
+
+        await channel.setUserLimit(limit).catch((err) => console.error(err));
+        return submitted.reply({ content: `Oda limiti başarıyla değiştirildi: ${bold(limit)}`, flags: 64 }).catch(() => null);
+    }
+
+    if (commandName === 'Oda Bilgisi') {
+        const allowedUsers = channel.permissionOverwrites.cache
+            .filter((overwrite) => overwrite.allow.has(PermissionFlagsBits.Connect) && overwrite.type === 1 && overwrite.id !== interaction.user.id)
+            .map((overwrite) => `<@${overwrite.id}>`);
+        const deniedUsers = channel.permissionOverwrites.cache
+            .filter((overwrite) => overwrite.deny.has(PermissionFlagsBits.Connect) && overwrite.type === 1)
+            .map((overwrite) => `<@${overwrite.id}>`);
+        const inVoice = channel.members.map((voiceMember) => `${voiceMember}`).join(', ') || 'Kimse yok.';
+        const permissions = channel.permissionOverwrites.cache.get(interaction.guild.id);
+        const isLocked = permissions?.deny.has(PermissionFlagsBits.Connect);
+        const isHidden = permissions?.deny.has(PermissionFlagsBits.ViewChannel);
+
+        return interaction.reply({
+            embeds: [
+                new EmbedBuilder()
+                    .setTitle('Oda Bilgileri')
+                    .setColor(0x2f3136)
+                    .setDescription([
+                        `• Sahip: ${member}`,
+                        `• Oda: ${channel}`,
+                        `• Limit: ${channel.userLimit || 'Limitsiz'}`,
+                        `• Durum: ${isLocked ? 'Kapalı' : 'Açık'} / ${isHidden ? 'Gizli' : 'Görünür'}`,
+                        `• Sestekiler: ${inVoice}`,
+                        `• İzinliler: ${allowedUsers.join(', ') || 'Kimse yok.'}`,
+                        `• Yasaklılar: ${deniedUsers.join(', ') || 'Kimse yok.'}`,
+                    ].join('\n')),
+            ],
+            flags: 64,
+        }).catch(() => null);
+    }
+
+    if (commandName === 'Kilitle / Aç') {
+        const permissions = channel.permissionOverwrites.cache.get(interaction.guild.id);
+        if (permissions && permissions.deny.has(PermissionFlagsBits.Connect)) {
+            await channel.permissionOverwrites.edit(interaction.guild.id, { [PermissionFlagsBits.Connect]: true });
+            return interaction.reply({ content: 'Kanal herkese açıldı.', flags: 64 }).catch(() => null);
+        }
+
+        await channel.permissionOverwrites.edit(interaction.guild.id, { [PermissionFlagsBits.Connect]: false });
+        return interaction.reply({ content: 'Kanal herkese kapatıldı.', flags: 64 }).catch(() => null);
+    }
+
+    if (commandName === 'Üye İzni') {
+        const overwrite = channel.permissionOverwrites.cache.get(target.id);
+        if (overwrite?.allow.has(PermissionFlagsBits.Connect)) {
+            await channel.permissionOverwrites.edit(target.id, { [PermissionFlagsBits.Connect]: false });
+            return interaction.reply({ content: `${target} kullanıcısının özel oda izni kaldırıldı.`, flags: 64 }).catch(() => null);
+        }
+
+        await channel.permissionOverwrites.edit(target.id, {
+            [PermissionFlagsBits.Connect]: true,
+            [PermissionFlagsBits.ViewChannel]: true,
+        });
+        return interaction.reply({ content: `${target} kullanıcısına özel odaya bağlanma izni verildi.`, flags: 64 }).catch(() => null);
+    }
+
+    if (commandName === 'Üyeyi Yasakla') {
+        await channel.permissionOverwrites.edit(target.id, {
+            [PermissionFlagsBits.Connect]: false,
+            [PermissionFlagsBits.ViewChannel]: false,
+        });
+        if (target.voice.channelId === channel.id) await target.voice.disconnect('Özel oda sahibi tarafından yasaklandı.').catch(() => null);
+        return interaction.reply({ content: `${target} kullanıcısının odaya girişi yasaklandı.`, flags: 64 }).catch(() => null);
+    }
+
+    if (commandName === 'Görünürlük') {
+        if (!member.premiumSinceTimestamp && !member.premiumSince) {
+            return interaction.reply({ content: 'Oda görünürlüğünü yalnızca aktif boost basan üyeler değiştirebilir.', flags: 64 }).catch(() => null);
+        }
+
+        const permissions = channel.permissionOverwrites.cache.get(interaction.guild.id);
+        if (permissions && permissions.deny.has(PermissionFlagsBits.ViewChannel)) {
+            await channel.permissionOverwrites.edit(interaction.guild.id, { [PermissionFlagsBits.ViewChannel]: true });
+            return interaction.reply({ content: 'Kanal herkese görünür yapıldı.', flags: 64 }).catch(() => null);
+        }
+
+        await channel.permissionOverwrites.edit(interaction.guild.id, { [PermissionFlagsBits.ViewChannel]: false });
+        return interaction.reply({ content: 'Kanal herkese gizlendi.', flags: 64 }).catch(() => null);
+    }
+
+    if (commandName === 'Devret') {
+        await Settings.updateOne(
+            { id: member.guild.id, 'privateRooms.channel': channel.id },
+            { $set: { 'privateRooms.$.owner': target.id } }
+        );
+        await channel.permissionOverwrites.edit(member.id, {
+            [PermissionFlagsBits.MoveMembers]: null,
+            [PermissionFlagsBits.MuteMembers]: null,
+            [PermissionFlagsBits.DeafenMembers]: null,
+        }).catch(() => null);
+        await channel.permissionOverwrites.edit(target.id, {
+            [PermissionFlagsBits.Connect]: true,
+            [PermissionFlagsBits.Stream]: true,
+            [PermissionFlagsBits.Speak]: true,
+            [PermissionFlagsBits.ViewChannel]: true,
+            [PermissionFlagsBits.MoveMembers]: true,
+            [PermissionFlagsBits.MuteMembers]: true,
+            [PermissionFlagsBits.DeafenMembers]: true,
+        }).catch(() => null);
+
+        return interaction.reply({ content: `Oda sahipliği ${target} kullanıcısına devredildi.`, flags: 64 }).catch(() => null);
+    }
+
+    if (commandName === 'Odayı Sil') {
+        await Settings.updateOne({ id: member.guild.id }, { $pull: { privateRooms: { channel: channel.id } } });
+        await interaction.reply({ content: 'Özel odanız silindi.', flags: 64 }).catch(() => null);
+        return channel.delete().catch(() => null);
+    }
+
+    if (commandName === 'Odayı Üste Taşı') {
+        return moveRoomTop(interaction, member, channel);
+    }
+}
+
+async function moveRoomTop(interaction, member, channel) {
+    const user = await interaction.client.users.fetch(member.id, { force: true }).catch(() => member.user);
+    const guildTag = getUserGuildTag(user, interaction.guild.id);
+    if (!guildTag) {
+        return interaction.reply({ content: 'Bu işlemi yalnızca sunucunun guild tagini alan üyeler kullanabilir.', flags: 64 }).catch(() => null);
+    }
+
+    const settings = await Settings.findOne({ id: member.guild.id }).lean().catch(() => null);
+    const cooldownRecord = (settings?.privateRoomTopMoves || []).find((item) => item.userId === member.id);
+    const lastMovedAt = getTimestamp(cooldownRecord?.lastMovedAt);
+    const now = Date.now();
+    const availableAt = lastMovedAt + ROOM_TOP_COOLDOWN;
+    if (lastMovedAt && availableAt > now) {
+        return interaction.reply({
+            content: `Odayı tekrar üste taşımak için ${formatRemaining(availableAt - now)} beklemelisin.`,
+            flags: 64,
+        }).catch(() => null);
+    }
+
+    const createRoomChannel = interaction.guild.channels.cache.get(settings?.secretRoomChannel)
+        || await interaction.guild.channels.fetch(settings?.secretRoomChannel).catch(() => null);
+    if (!createRoomChannel || createRoomChannel.parentId !== channel.parentId) {
+        return interaction.reply({ content: 'Özel oda oluştur kanalı bulunamadı.', flags: 64 }).catch(() => null);
+    }
+
+    const moved = await channel.setPosition(createRoomChannel.position + 1, { reason: `${member.user.tag} özel odasını üste taşıdı.` })
+        .then(() => true)
+        .catch((error) => {
+            console.error('[ROOM_MOVE_TOP]', error);
+            return false;
+        });
+    if (!moved) return interaction.reply({ content: 'Oda üste taşınırken bir hata oluştu.', flags: 64 }).catch(() => null);
+    await Settings.updateOne(
+        { id: member.guild.id },
+        { $pull: { privateRoomTopMoves: { userId: member.id } } }
+    ).catch(() => null);
+    await Settings.updateOne(
+        { id: member.guild.id },
+        { $push: { privateRoomTopMoves: { userId: member.id, lastMovedAt: now } } },
+        { upsert: true }
+    ).catch(() => null);
+
+    return interaction.reply({ content: `${channel} odası özel oda oluştur kanalının altına taşındı.`, flags: 64 }).catch(() => null);
+}
+
+function getTimestamp(value) {
+    if (!value) return 0;
+    if (typeof value === 'number') return value;
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function formatRemaining(ms) {
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return minutes ? `${minutes} dakika ${seconds} saniye` : `${seconds} saniye`;
 }

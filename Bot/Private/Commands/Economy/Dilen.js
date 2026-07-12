@@ -1,6 +1,6 @@
 const { AttachmentBuilder } = require('discord.js');
 const CanvasUtil = require('../../../Base/CanvasUtil');
-const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../Base/FunUtils');
+const { formatDinar, getAccount, getEconomyBackground, getPrefix, updateAccount } = require('../../../Base/FunUtils');
 
 module.exports = {
     name: 'dilen',
@@ -17,7 +17,7 @@ module.exports = {
         if (remaining > 0) {
             const minutes = Math.floor(remaining / 60000);
             const seconds = Math.floor((remaining % 60000) / 1000);
-            const buffer = await CanvasUtil.begCard('cooldown', 'Sokakta kimse yok.', `${minutes} dk ${seconds} sn sonra tekrar dene.`);
+            const buffer = await CanvasUtil.begCard('cooldown', 'Sokakta kimse yok.', `${minutes} dk ${seconds} sn sonra tekrar dene.`, getEconomyBackground(message.guild));
             return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'beg.png' })] });
         }
 
@@ -27,12 +27,12 @@ module.exports = {
                 cash: account.coin + reward,
                 lastBegTime: now,
             });
-            const buffer = await CanvasUtil.begCard('success', `Bir hayırsever sana ${formatDinar(reward)} verdi.`, 'Bugünlük sansın iyi gitti.');
+            const buffer = await CanvasUtil.begCard('success', `Bir hayırsever sana ${formatDinar(reward)} verdi.`, 'Bugünlük sansın iyi gitti.', getEconomyBackground(message.guild));
             return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'beg.png' })] });
         }
 
         await updateAccount(message.author.id, { lastBegTime: now });
-        const buffer = await CanvasUtil.begCard('fail', 'Kimse sana para vermedi.', 'Herkes ters ters bakıp geçti.');
+        const buffer = await CanvasUtil.begCard('fail', 'Kimse sana para vermedi.', 'Herkes ters ters bakıp geçti.', getEconomyBackground(message.guild));
         return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'beg.png' })] });
     },
 };

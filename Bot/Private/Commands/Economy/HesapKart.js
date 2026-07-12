@@ -1,6 +1,6 @@
 const { AttachmentBuilder } = require('discord.js');
 const CanvasUtil = require('../../../Base/CanvasUtil');
-const { getAccount, getPrefix } = require('../../../Base/FunUtils');
+const { getAccount, getEconomyBackground, getPrefix } = require('../../../Base/FunUtils');
 
 module.exports = {
     name: 'hesapkart',
@@ -14,7 +14,7 @@ module.exports = {
         }
 
         const loading = await message.reply('Banka kartı hazırlanıyor...');
-        const buffer = await CanvasUtil.bankCard(message.author, account.cardNumber, account.coin);
+        const buffer = await CanvasUtil.bankCard(message.author, account.cardNumber, account.coin, getEconomyBackground(message.guild));
         return loading.edit({
             content: null,
             files: [new AttachmentBuilder(buffer, { name: 'bank-card.png' })],

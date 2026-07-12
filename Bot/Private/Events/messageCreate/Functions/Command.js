@@ -1,9 +1,10 @@
 const { EmbedBuilder } = require('discord.js')
 const Settings = require('../../../../Schema/Settings')
 
-module.exports = async function Command(client, message, prefix) {
-    if (message.author.id === '1218637955040809030') return;
+const commandCooldowns = new Map();
+const COMMAND_COOLDOWN = 5000;
 
+module.exports = async function Command(client, message, prefix) {
     let document = await Settings.findOne({ id: message.guild.id })
     if (!document) {
         document = new Settings({ id: message.guild.id })
@@ -22,6 +23,21 @@ module.exports = async function Command(client, message, prefix) {
     const commands = args.shift().toLowerCase();
     const cmd = client.commands.get(commands) || [...client.commands.values()].find((e) => e.aliases && e.aliases.includes(commands));
     if (cmd) {
+        const isBotOwner = Array.isArray(global.system?.ownerID) && global.system.ownerID.includes(message.author.id);
+        if (!isBotOwner) {
+            const cooldown = commandCooldowns.get(message.author.id) || 0;
+            const now = Date.now();
+            if (cooldown > now) {
+                const remaining = Math.ceil((cooldown - now) / 1000);
+                return message.reply({ content: `Komut kullanmak için ${remaining} saniye beklemelisin.` })
+                    .then((msg) => setTimeout(() => msg.delete().catch(() => null), 3000))
+                    .catch(() => null);
+            }
+
+            commandCooldowns.set(message.author.id, now + COMMAND_COOLDOWN);
+            setTimeout(() => commandCooldowns.delete(message.author.id), COMMAND_COOLDOWN);
+        }
+
         try {
             await cmd.execute(client, message, args, document, embed);
         } catch (error) {

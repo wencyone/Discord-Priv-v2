@@ -1,4 +1,4 @@
-const { Client, Partials, GatewayIntentBits, Events, EmbedBuilder, ActivityType, Collection, ChannelType, PermissionsBitField } = require('discord.js');
+const { Client, Partials, GatewayIntentBits, Events, EmbedBuilder, ActivityType, Collection, ChannelType, PermissionsBitField, ApplicationCommandType } = require('discord.js');
 const { readdirSync, statSync, existsSync } = require('fs');
 const Settings = require('../Schema/Settings')
 const { startLeaderboardInterval, updateLeaderboard } = require('../Base/LeaderboardUtil');
@@ -6,10 +6,16 @@ const { connectBotToVoice } = require('../Base/VoiceConnection');
 const { startGiveawayScheduler } = require('../Base/Giveaway');
 const { startJailScheduler } = require('../Base/Jail');
 const { startBoosterRoleScheduler } = require('../Base/BoosterRole');
+const { attachClientErrorHandlers, startWithRetry } = require('../Base/Startup');
 
 const client = global.client = new Client({ intents: Object.keys(GatewayIntentBits), partials: Object.keys(Partials) });
+attachClientErrorHandlers(client, 'Private');
 const system = global.system = require('../../System');
 const functions = global.functions = require('../Base/Functions');
+
+const roomContextCommands = [
+    { name: 'Özel Oda Paneli', type: ApplicationCommandType.User },
+];
 
 const commands = client.commands = new Collection();
 const afks = client.afks = new Collection();
@@ -49,6 +55,8 @@ client.on(Events.ClientReady, async () => {
 
     const guild = client.guilds.cache.get(system.serverID);
     if (!guild) return;
+
+    await guild.commands.set(roomContextCommands).catch((error) => console.error('[ROOM_CONTEXT_COMMANDS]', error));
 
     startGiveawayScheduler(client);
     startJailScheduler(client);
@@ -99,14 +107,11 @@ client.on(Events.ClientReady, async () => {
 const mongoose = require('mongoose');
 
 async function start() {
-    try {
+    await startWithRetry('Private', async () => {
         await mongoose.connect(system.database, { serverSelectionTimeoutMS: 15000 });
         console.log('[DATABASE] MongoDB bağlantısı başarılı.');
         await client.login(system.Private.Token);
-    } catch (error) {
-        console.error(`[STARTUP] Private bot başlatılamadı: ${error.message}`);
-        process.exitCode = 1;
-    }
+    });
 }
 
 start();

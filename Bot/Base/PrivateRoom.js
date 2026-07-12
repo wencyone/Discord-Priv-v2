@@ -6,7 +6,7 @@ function formatPrivateRoomName(name) {
         roomName = roomName.slice(PRIVATE_ROOM_EMOJI.length).trim();
     }
 
-    return `${PRIVATE_ROOM_EMOJI} ${roomName || 'Özel Oda'}`.slice(0, 100);
+    return `${roomName || 'Özel Oda'}`.slice(0, 100);
 }
 
 module.exports = { PRIVATE_ROOM_EMOJI, formatPrivateRoomName };

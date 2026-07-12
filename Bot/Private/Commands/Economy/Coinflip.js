@@ -1,6 +1,6 @@
 const { AttachmentBuilder } = require('discord.js');
 const CanvasUtil = require('../../../Base/CanvasUtil');
-const { formatDinar, getAccount, getPrefix, updateAccount } = require('../../../Base/FunUtils');
+const { formatDinar, getAccount, getEconomyBackground, getPrefix, updateAccount } = require('../../../Base/FunUtils');
 
 module.exports = {
     name: 'coinflip',
@@ -20,7 +20,7 @@ module.exports = {
         const updated = await updateAccount(message.author.id, {
             cash: isWin ? account.coin + amount : Math.max(0, account.coin - amount),
         });
-        const buffer = await CanvasUtil.coinFlipCard(result, isWin ? 'kazandı' : 'kaybetti', amount);
+        const buffer = await CanvasUtil.coinFlipCard(result, isWin ? 'kazandı' : 'kaybetti', amount, getEconomyBackground(message.guild));
 
         return message.reply({
             content: isWin

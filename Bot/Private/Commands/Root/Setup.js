@@ -70,6 +70,7 @@ module.exports = {
                     { label: 'GIF İzinli Rol', value: 'gifAuthRole_string', description: 'GIF göndermesine izin verilen rol.', emoji: wency.gifAuthRole ? '✅' : '❌' },
                     { label: 'Vip Rolü', value: 'vipRole_string', description: 'Vip rolü.', emoji: wency.vipRole ? '✅' : '❌' },
                     { label: 'Jail Rolü', value: 'jailRole_string', description: 'Jail verilen kullanıcıya uygulanacak rol.', emoji: wency.jailRole ? '✅' : '❌' },
+                    { label: 'Guild Tag Rolü', value: 'guildTagRole_string', description: 'Guild tag alan kullanıcıya verilecek rol.', emoji: wency.guildTagRole ? '✅' : '❌' },
                     { label: 'Family Rolü', value: 'familyRole_string', description: 'Family rolü.', emoji: wency.familyRole ? '✅' : '❌' },
                     { label: 'Erkek Rolü', value: 'manRole_string', description: 'Erkek rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.manRole ? '✅' : '❌' },
                     { label: 'Kadın Rolü', value: 'womanRole_string', description: 'Kadın rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.womanRole ? '✅' : '❌' },
@@ -293,6 +294,7 @@ async function logSetup(message) {
         { name: 'voice-log' },
         { name: 'giriş-çıkış-log' },
         { name: 'rol-log' },
+        { name: 'guild-log' },
         { name: 'emoji-log' },
     ];
 
@@ -377,6 +379,7 @@ async function refreshSetup(message, wency, botMessage) {
                 { label: 'GIF İzinli Rol', value: 'gifAuthRole_string', description: 'GIF göndermesine izin verilen rol.', emoji: wency.gifAuthRole ? '✅' : '❌' },
                 { label: 'Vip Rolü', value: 'vipRole_string', description: 'Vip rolü.', emoji: wency.vipRole ? '✅' : '❌' },
                 { label: 'Jail Rolü', value: 'jailRole_string', description: 'Jail verilen kullanıcıya uygulanacak rol.', emoji: wency.jailRole ? '✅' : '❌' },
+                { label: 'Guild Tag Rolü', value: 'guildTagRole_string', description: 'Guild tag alan kullanıcıya verilecek rol.', emoji: wency.guildTagRole ? '✅' : '❌' },
                 { label: 'Family Rolü', value: 'familyRole_string', description: 'Family rolü.', emoji: wency.familyRole ? '✅' : '❌' },
                 { label: 'Erkek Rolü', value: 'manRole_string', description: 'Erkek rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.manRole ? '✅' : '❌' },
                 { label: 'Kadın Rolü', value: 'womanRole_string', description: 'Kadın rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.womanRole ? '✅' : '❌' },

@@ -38,7 +38,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 async function logRightClickTimeout(oldMember, newMember) {
     const oldUntil = oldMember.communicationDisabledUntilTimestamp || 0;
     const newUntil = newMember.communicationDisabledUntilTimestamp || 0;
-    if (newUntil <= Date.now() || newUntil === oldUntil) return;
+    if (newUntil === oldUntil) return;
 
     await new Promise((resolve) => setTimeout(resolve, 750));
     const entry = await newMember.guild.fetchAuditLogs({ limit: 5, type: AuditLogEvent.MemberUpdate })
@@ -49,6 +49,17 @@ async function logRightClickTimeout(oldMember, newMember) {
         .catch(() => null);
 
     if (!entry?.executor || entry.executor.id === client.user.id) return;
+
+    if (oldUntil > Date.now() && !newUntil) {
+        await sendTimeoutLog(newMember.guild, newMember, entry.executor, {
+            action: 'remove',
+            source: 'Sağ Tık',
+            reason: entry.reason || 'Sebep belirtilmedi',
+        });
+        return;
+    }
+
+    if (newUntil <= Date.now()) return;
 
     await sendTimeoutLog(newMember.guild, newMember, entry.executor, {
         source: 'Sağ Tık',

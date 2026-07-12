@@ -4,12 +4,13 @@ const { checkWhitelist, date } = require('../../../../Utils/Functions.js');
 module.exports = async function stickerCreate(client, guild, audit, member, changes) {
   const logChannel = guild.channels.cache.find(c => c.name === 'guard-log') || client.users.cache.get(guild.ownerId);
   const safeMode = await checkWhitelist(client, member, 'emoji');
+  const stickerURL = getStickerURL(audit.target);
 
   if (logChannel) logChannel.send({
     embeds: [
       new EmbedBuilder({
         title: 'Sticker Oluşturuldu!',
-        image: { url: audit.target.imageURL() },
+        image: stickerURL ? { url: stickerURL } : undefined,
         description: [
           codeBlock('yaml', [
             `→ İşlem Yapan Kişi: ${member?.user.username} (${member?.id})`,
@@ -27,4 +28,11 @@ module.exports = async function stickerCreate(client, guild, audit, member, chan
       })
     ]
   })
+}
+
+function getStickerURL(sticker) {
+  if (!sticker?.id) return null;
+  if (typeof sticker.url === 'string') return sticker.url;
+  if (typeof sticker.imageURL === 'function') return sticker.imageURL();
+  return `https://media.discordapp.net/stickers/${sticker.id}.png`;
 }

@@ -6,15 +6,17 @@ const Settings = require('../../Schema/GuardSettings');
 const roleModel = require('../../Schema/RoleModel');
 const { startDists, roleBackup, createRole, distributeRoleMembers } = require('../Utils/Functions');
 const { connectBotToVoice } = require('../../Base/VoiceConnection');
+const { attachClientErrorHandlers, startWithRetry } = require('../../Base/Startup');
 
 require('colors');
 const client = new Client({
-    intents: Object.keys(GatewayIntentBits),
-    partials: Object.keys(Partials),
-    rest: { version: 10, hashLifetime: Infinity },
+	intents: Object.keys(GatewayIntentBits),
+	partials: Object.keys(Partials),
+	rest: { version: 10, hashLifetime: Infinity },
 	presence: { status: config.Presence.Status, activities: [{ name: config.Presence.Message[Math.floor(Math.random() * config.Presence.Message.length)], type: config.Presence.Type, url: 'https://www.twitch.tv/wencycuk' }] },
-    ws: { version: 10, properties: { $browser: 'discord.js' } }
+	ws: { version: 10, properties: { $browser: 'discord.js' } }
 });
+attachClientErrorHandlers(client, 'Backup');
 
 let pendingRestoreScanRunning = false;
 
@@ -135,15 +137,12 @@ client.on(Events.GuildAuditLogEntryCreate, async (audit, guild) => {
 });
 
 async function start() {
-    try {
+    await startWithRetry('Backup', async () => {
         await Driver.authenticate();
         console.log('[DATABASE] Ortak Guard veritabanı bağlantısı başarılı.');
         await client.login(config.Security.Backup);
         console.log(`[BOT] ${client.user.tag} olarak giriş yaptı!`);
-    } catch (error) {
-        console.error(`[STARTUP] Backup bot başlatılamadı: ${error.message}`);
-        process.exitCode = 1;
-    }
+    });
 }
 
 start();
