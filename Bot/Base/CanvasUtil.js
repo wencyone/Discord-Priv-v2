@@ -291,15 +291,18 @@ async function shipCard(user1, user2, percent, backgroundURL = DEFAULT_BACKGROUN
     const canvas = createCanvas(WIDTH, HEIGHT);
     const ctx = canvas.getContext('2d');
 
-    const bg = await loadImage(backgroundURL);
+    try {
+        const bg = await loadImage(backgroundURL);
+        const scale = Math.max(WIDTH / bg.width, HEIGHT / bg.height);
+        const bgW = bg.width * scale;
+        const bgH = bg.height * scale;
+        const bgX = (WIDTH - bgW) / 2;
+        const bgY = (HEIGHT - bgH) / 2;
 
-    const scale = Math.max(WIDTH / bg.width, HEIGHT / bg.height);
-    const bgW = bg.width * scale;
-    const bgH = bg.height * scale;
-    const bgX = (WIDTH - bgW) / 2;
-    const bgY = (HEIGHT - bgH) / 2;
-
-    ctx.drawImage(bg, bgX, bgY, bgW, bgH);
+        ctx.drawImage(bg, bgX, bgY, bgW, bgH);
+    } catch {
+        drawDefaultBackground(ctx);
+    }
 
     drawSoftCircles(ctx);
 

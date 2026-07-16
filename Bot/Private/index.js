@@ -14,7 +14,8 @@ const system = global.system = require('../../System');
 const functions = global.functions = require('../Base/Functions');
 
 const roomContextCommands = [
-    { name: 'Özel Oda Paneli', type: ApplicationCommandType.User },
+    { name: 'Üyeyi Engelle', type: ApplicationCommandType.User },
+    { name: 'Üyeye İzin Ver', type: ApplicationCommandType.User },
 ];
 
 const commands = client.commands = new Collection();

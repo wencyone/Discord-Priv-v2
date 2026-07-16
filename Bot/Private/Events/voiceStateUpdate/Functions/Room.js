@@ -1,4 +1,4 @@
-const { PermissionsBitField: { Flags }, Events, ChannelType, bold } = require('discord.js');
+const { PermissionsBitField: { Flags }, Events, ChannelType, bold, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Settings = require('../../../../Schema/Settings');
 const { formatPrivateRoomName } = require('../../../../Base/PrivateRoom');
 
@@ -62,6 +62,8 @@ module.exports = async function Room(client, oldState, newState) {
             allow: overwrite.allow.toArray(),
             deny: overwrite.deny.toArray()
         }));
+        denyRoomTextMessages(perms, newState.guild.roles.everyone.id, client.user.id);
+        allowBotRoomPanel(perms, client.user.id);
 
         const xRole = newState.guild.roles.cache.find(r => r.name.toLowerCase().includes('giriş çıkış'));
         if (xRole) {
@@ -101,8 +103,10 @@ module.exports = async function Room(client, oldState, newState) {
             parent: newState.channel.parentId,
             permissionOverwrites: perms
         }).catch(e => console.log(e));
+        if (!newChannel) return;
 
-        newState.setChannel(newChannel);
+        await newState.setChannel(newChannel).catch(() => null);
+        await sendRoomControlButtons(client, newChannel);
         await Settings.updateOne({ id: member.guild.id }, { $push: { privateRooms: { owner: member.id, channel: newChannel.id } } });
     }
 
@@ -123,7 +127,7 @@ module.exports = async function Room(client, oldState, newState) {
         if (isAdmin && !isAllow && isLock && !hasSlashRole && !hasXRole) {
             if (member?.voice.channel) {
                 member.send({ content: `${bold(channel.name)} adlı özel oda için yetkiniz bulunmamaktadır.` }).catch();
-                channel?.send({ content: `${member} kullanıcısı kanala katıldı fakat kanalda izni olmadığı için bağlantısı kesildi...` }).then((e) => setTimeout(() => { e.delete(); }, 20000));
+                channel?.send({ content: `${member} kullanıcısı kanala katıldı fakat kanalda izni olmadığı için bağlantısı kesildi...` }).then((e) => deleteMessageLater(e, 20000)).catch(() => null);
                 member.voice.disconnect();
             }
             return;
@@ -146,8 +150,8 @@ module.exports = async function Room(client, oldState, newState) {
 
         if (isAdmin && !isAllow && isLock && !hasSlashRole && !hasXRole) {
             if (member?.voice.channel) {
-                member.send({ content: `${bold(channel.name)} adlı özel oda için yetkiniz bulunmamaktadır.` }).catch(console.log(member.user.username));
-                channel.send({ content: `${member} kullanıcısı kanala katıldı fakat kanalda izni olmadığı için bağlantısı kesildi...` }).then((e) => setTimeout(() => { e.delete(); }, 20000));
+                member.send({ content: `${bold(channel.name)} adlı özel oda için yetkiniz bulunmamaktadır.` }).catch(() => null);
+                channel.send({ content: `${member} kullanıcısı kanala katıldı fakat kanalda izni olmadığı için bağlantısı kesildi...` }).then((e) => deleteMessageLater(e, 20000)).catch(() => null);
                 member.voice.disconnect();
             }
             return;
@@ -196,6 +200,82 @@ function scheduleRestrictionRelease(guild, roomId, userId, restriction) {
             await member.voice.setDeaf(false, 'Özel odadan ayrıldığı için sağırlaştırma kaldırıldı').catch(() => null);
         }
     }, VOICE_RESTRICTION_RELEASE_DELAY);
+}
+
+function deleteMessageLater(message, delay) {
+    setTimeout(() => {
+        message.delete().catch((error) => {
+            if (error?.code !== 'ChannelNotCached' && error?.code !== 10008 && error?.code !== 10003) console.error(error);
+        });
+    }, delay);
+}
+
+function denyRoomTextMessages(perms, everyoneId, botId) {
+    let everyonePerm = perms.find((perm) => perm.id === everyoneId);
+    if (!everyonePerm) {
+        everyonePerm = { id: everyoneId, allow: [], deny: [] };
+        perms.push(everyonePerm);
+    }
+
+    perms.forEach((perm) => {
+        if (perm.id === botId) return;
+        perm.allow = (perm.allow || []).filter((permission) => !isSendMessagesPermission(permission));
+        if (!(perm.deny || []).some((permission) => isSendMessagesPermission(permission))) perm.deny.push(Flags.SendMessages);
+    });
+}
+
+function allowBotRoomPanel(perms, botId) {
+    let botPerm = perms.find((perm) => perm.id === botId);
+    if (!botPerm) {
+        botPerm = { id: botId, allow: [], deny: [] };
+        perms.push(botPerm);
+    }
+    botPerm.deny = (botPerm.deny || []).filter((permission) => !isSendMessagesPermission(permission));
+    botPerm.allow.push(Flags.ViewChannel, Flags.SendMessages);
+}
+
+function isSendMessagesPermission(permission) {
+    return permission === Flags.SendMessages || permission === 'SendMessages' || String(permission) === String(Flags.SendMessages);
+}
+
+async function sendRoomControlButtons(client, channel) {
+    const eChange = findEmoji(client, 'wencyChange') || '✏️';
+    const eLimit = findEmoji(client, 'wencyLimit') || '👥';
+    const eLock = findEmoji(client, 'wencyLock') || '🔒';
+    const eVisible = findEmoji(client, 'wencyVisible') || '👁️';
+    const eMember = findEmoji(client, 'wencyMember') || '🧩';
+    const eInfo = findEmoji(client, 'wencyInfo') || '📋';
+    const eDeny = findEmoji(client, 'wencyDeny') || '🔕';
+    const eCrown = findEmoji(client, 'wencyCrown') || '👑';
+    const eTrash = findEmoji(client, 'wencyTrash') || '🗑️';
+
+    return channel.send({
+        components: [
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('changeName').setEmoji(eChange).setLabel('İsim Değiştir').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('changeLimit').setEmoji(eLimit).setLabel('Limit Ayarla').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('roomInfo').setEmoji(eInfo).setLabel('Oda Bilgisi').setStyle(ButtonStyle.Secondary),
+            ),
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('lockOrUnlock').setEmoji(eLock).setLabel('Kilitle / Aç').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('addOrRemove').setEmoji(eMember).setLabel('Üye İzni').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('denyMember').setEmoji(eDeny).setLabel('Üyeyi Yasakla').setStyle(ButtonStyle.Secondary),
+            ),
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('visibleOrInvisible').setEmoji(eVisible).setLabel('Görünürlük').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('transferOwner').setEmoji(eCrown).setLabel('Devret').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('deleteRoom').setEmoji(eTrash).setLabel('Odayı Sil').setStyle(ButtonStyle.Danger),
+            ),
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('moveRoomTop').setEmoji('⬆️').setLabel('Odayı Üste Taşı').setStyle(ButtonStyle.Secondary),
+            ),
+        ],
+        allowedMentions: { parse: [], users: [], roles: [] },
+    }).catch(() => null);
+}
+
+function findEmoji(client, name) {
+    return client.emojis.cache.find((emoji) => emoji.name === name)?.id || null;
 }
 
 async function grantRoomOwnerVoicePermissions(channel, ownerId) {

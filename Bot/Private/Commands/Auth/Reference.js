@@ -98,7 +98,7 @@ module.exports = {
                 await i.update({
                     content: `${user} kullanıcısı ${message.author} tarafından ${gender} olarak kayıt edildi.`,
                     components: []
-                });
+                }).catch(() => null);
                 await message.react('✅').catch(() => null);
                 collector.stop('registered');
             });

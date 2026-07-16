@@ -32,7 +32,8 @@ module.exports = {
         if (!user2) return message.reply('Shiplenecek uygun bir üye bulunamadı.');
 
         const percent = Math.floor(Math.random() * 96) + 5;
-        const buffer = await CanvasUtil.shipCard(user1, user2, percent);
+        const buffer = await CanvasUtil.shipCard(user1, user2, percent).catch(() => null);
+        if (!buffer) return message.reply({ content: 'Ship kartı hazırlanırken bağlantı zaman aşımına uğradı. Lütfen tekrar dene.' }).catch(() => null);
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ship_tanis').setLabel('Tanış').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('ship_ozel_tanis').setLabel('Özel Tanış').setStyle(ButtonStyle.Primary),
@@ -61,7 +62,8 @@ module.exports = {
                 if (i.user.id !== user1.id) return i.reply({ content: 'Bu butonu sadece shipi başlatan kişi kullanabilir.', flags: 64 }).catch(() => null);
                 await i.deferReply({ flags: 64 });
                 try {
-                    const meetBuffer = await CanvasUtil.shipMeetCard(user1, message.guild.name);
+                    const meetBuffer = await CanvasUtil.shipMeetCard(user1, message.guild.name).catch(() => null);
+                    if (!meetBuffer) return i.editReply({ content: 'Tanışma kartı hazırlanırken bağlantı zaman aşımına uğradı. Lütfen tekrar dene.' }).catch(() => null);
                     await user2.send({
                         content: `Selam. ${user1} seni ${message.guild.name} sunucusunda shipledi ve seninle tanışmak istiyor.`,
                         files: [new AttachmentBuilder(meetBuffer, { name: 'meet-invitation.png' })],
