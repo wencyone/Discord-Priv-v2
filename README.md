@@ -110,23 +110,4 @@ node index.js
 - `Root`: Bot owner ve kurulum komutları
 - `Stat`: İstatistik komutları
 
-## Güvenlik
 
-Public GitHub reposuna gerçek token, MongoDB URI, owner ID veya lokal veritabanı dosyası ekleme.
-
-Bu dosyalar `.gitignore` ile hariç tutulur:
-
-```gitignore
-*.log
-node_modules/
-database.sqlite
-backup.sqlite
-*.sqlite
-*.sqlite-journal
-*.db
-*.db-journal
-```
-
-## Lisans
-
-ISC
