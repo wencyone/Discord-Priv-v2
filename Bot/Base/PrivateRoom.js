@@ -1,5 +1,4 @@
-const PRIVATE_ROOM_EMOJI = '🌀';
-const OLD_PRIVATE_ROOM_EMOJIS = ['‪‪❤︎‬'];
+const PRIVATE_ROOM_EMOJI = '•';
 
 function formatPrivateRoomName(name) {
     let roomName = String(name || 'Özel Oda').trim();
