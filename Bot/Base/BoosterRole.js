@@ -10,11 +10,9 @@ const {
     TextDisplayBuilder,
     TextInputBuilder,
     TextInputStyle,
-    UserSelectMenuBuilder,
 } = require('discord.js');
 const BoosterRole = require('../Schema/BoosterRole');
 
-const SHARE_LIMIT = 15;
 const SUSPEND_TIME = 3 * 24 * 60 * 60 * 1000;
 const SPECIAL_ROLES_ANCHOR = '⸻Special Roles⸻';
 
@@ -46,6 +44,7 @@ async function getOwnedRole(interaction, requireBoost = true) {
         await interaction.reply({ content: 'Booster rolün sunucuda bulunamadı. Yeniden oluşturabilirsin.', flags: 64 }).catch(() => null);
         return null;
     }
+    await removeSharedMembers(interaction.guild, role, document);
     return { document, role };
 }
 
@@ -53,15 +52,35 @@ async function handleBoosterRoleInteraction(client, interaction) {
     if (!interaction.inGuild() || !interaction.customId.startsWith('booster-role:')) return false;
     const action = interaction.customId.split(':')[1];
 
-    if (action === 'create') await createRole(interaction);
-    if (action === 'edit') await editRole(interaction);
-    if (action === 'color') await showColorMenu(interaction);
-    if (action === 'color-select') await applyColor(interaction);
-    if (action === 'share') await showShareMenu(interaction);
-    if (action === 'share-select') await applySharing(interaction);
-    if (action === 'delete') await showDeleteConfirmation(interaction);
-    if (action === 'delete-confirm') await deleteOwnedRole(interaction);
-    if (action === 'delete-cancel') await interaction.update(ephemeralPanel(['❌ **Silme İşlemi İptal Edildi**']));
+    if (action === 'create') {
+        await createRole(interaction);
+        return true;
+    }
+    if (action === 'edit') {
+        await editRole(interaction);
+        return true;
+    }
+    if (action === 'color') {
+        await showColorMenu(interaction);
+        return true;
+    }
+    if (action === 'color-select') {
+        await applyColor(interaction);
+        return true;
+    }
+    if (action === 'delete') {
+        await showDeleteConfirmation(interaction);
+        return true;
+    }
+    if (action === 'delete-confirm') {
+        await deleteOwnedRole(interaction);
+        return true;
+    }
+    if (action === 'delete-cancel') {
+        await interaction.update(ephemeralPanel(['❌ **Silme İşlemi İptal Edildi**']));
+        return true;
+    }
+    await interaction.reply({ content: 'Bu booster rol işlemi artık kullanılamaz.', flags: 64 }).catch(() => null);
     return true;
 }
 
@@ -165,35 +184,6 @@ async function applyColor(interaction) {
     }
 }
 
-async function showShareMenu(interaction) {
-    const data = await getOwnedRole(interaction);
-    if (!data) return;
-    const menu = new UserSelectMenuBuilder().setCustomId('booster-role:share-select').setPlaceholder(`Rolü paylaşacağın üyeleri seç (en fazla ${SHARE_LIMIT})`).setMinValues(0).setMaxValues(SHARE_LIMIT);
-    if (data.document.sharedUserIds.length) menu.setDefaultUsers(data.document.sharedUserIds.slice(0, SHARE_LIMIT));
-    return interaction.reply(ephemeralPanel(['👤➕ **Rol Paylaşımı**', `Rolünü en fazla ${SHARE_LIMIT} üye ile paylaşabilirsin. Yeni seçim mevcut listeyi günceller.`], [new ActionRowBuilder().addComponents(menu)]));
-}
-
-async function applySharing(interaction) {
-    const data = await getOwnedRole(interaction);
-    if (!data) return;
-    const selected = [...new Set(interaction.values)].filter((id) => id !== interaction.user.id).slice(0, SHARE_LIMIT);
-    const old = data.document.sharedUserIds || [];
-    for (const userId of old.filter((id) => !selected.includes(id))) {
-        const member = await interaction.guild.members.fetch(userId).catch(() => null);
-        if (member) await member.roles.remove(data.role).catch(() => null);
-    }
-    const valid = [];
-    for (const userId of selected) {
-        const member = await interaction.guild.members.fetch(userId).catch(() => null);
-        if (!member || member.user.bot) continue;
-        await member.roles.add(data.role).catch(() => null);
-        valid.push(userId);
-    }
-    data.document.sharedUserIds = valid;
-    await data.document.save();
-    return interaction.update(ephemeralPanel(['✅ **Rol Paylaşımı Güncellendi**', `Rolün ${valid.length} üye ile paylaşılıyor.`]));
-}
-
 async function showDeleteConfirmation(interaction) {
     const data = await getOwnedRole(interaction, false);
     if (!data) return;
@@ -201,7 +191,7 @@ async function showDeleteConfirmation(interaction) {
         new ButtonBuilder().setCustomId('booster-role:delete-confirm').setLabel('Evet, Sil').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('booster-role:delete-cancel').setLabel('İptal').setStyle(ButtonStyle.Secondary)
     );
-    return interaction.reply(ephemeralPanel(['🗑️ **Booster Rolünü Sil**', 'Rol ve tüm paylaşımları kalıcı olarak silinecek.'], [row]));
+    return interaction.reply(ephemeralPanel(['🗑️ **Booster Rolünü Sil**', 'Booster rolün kalıcı olarak silinecek.'], [row]));
 }
 
 async function deleteOwnedRole(interaction) {
@@ -233,15 +223,24 @@ async function restoreBoosterRole(guild, memberId) {
         await BoosterRole.deleteOne({ _id: document._id });
         return false;
     }
-    const ids = [document.ownerId, ...document.sharedUserIds];
-    for (const id of ids) {
-        const member = await guild.members.fetch(id).catch(() => null);
-        if (member) await member.roles.add(role).catch(() => null);
-    }
+    await removeSharedMembers(guild, role, document);
+    const member = await guild.members.fetch(document.ownerId).catch(() => null);
+    if (member) await member.roles.add(role).catch(() => null);
     document.suspendedAt = null;
     document.deleteAt = null;
     await document.save();
     return true;
+}
+
+async function removeSharedMembers(guild, role, document) {
+    const sharedUserIds = document.sharedUserIds || [];
+    if (!sharedUserIds.length) return;
+    for (const userId of sharedUserIds) {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (member?.id !== document.ownerId) await member.roles.remove(role).catch(() => null);
+    }
+    document.sharedUserIds = [];
+    await document.save();
 }
 
 function startBoosterRoleScheduler(client) {
@@ -270,7 +269,6 @@ module.exports = {
     handleBoosterRoleInteraction,
     isBooster,
     restoreBoosterRole,
-    SHARE_LIMIT,
     startBoosterRoleScheduler,
     suspendBoosterRole,
 };

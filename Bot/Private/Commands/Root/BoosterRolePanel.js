@@ -21,7 +21,6 @@ module.exports = {
             new ButtonBuilder().setCustomId('booster-role:create').setLabel('Oluştur').setEmoji('✨').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId('booster-role:edit').setLabel('Düzenle').setEmoji('🖊️').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('booster-role:color').setLabel('Renk').setEmoji('🎨').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('booster-role:share').setLabel('Paylaşım').setEmoji('👥').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('booster-role:delete').setLabel('Sil').setEmoji('🗑️').setStyle(ButtonStyle.Danger),
         );
         const container = new ContainerBuilder()
@@ -35,7 +34,6 @@ module.exports = {
                 '✨ **Oluştur** — kendi adına özel rol (limit: 1)',
                 '🖊️ **Düzenle** — oluşturduğun rolün ismini değiştir',
                 '🎨 **Renk** — katı, gradyan veya holografik renk ver',
-                '👥 **Paylaşım** — rolünü arkadaşlarınla paylaş (en fazla 15)',
                 '🗑️ **Sil** — özel rolünü tamamen kaldır',
             ].join('\n')))
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
