@@ -2,11 +2,13 @@ const { Client, Partials, GatewayIntentBits, Events, EmbedBuilder, ActivityType,
 const { readdirSync, statSync, existsSync } = require('fs');
 const Settings = require('../Schema/Settings')
 const { startLeaderboardInterval, updateLeaderboard } = require('../Base/LeaderboardUtil');
-const { connectBotToVoice } = require('../Base/VoiceConnection');
+const { startVoiceConnectionMonitor } = require('../Base/VoiceConnection');
 const { startGiveawayScheduler } = require('../Base/Giveaway');
 const { startJailScheduler } = require('../Base/Jail');
 const { startBoosterRoleScheduler } = require('../Base/BoosterRole');
-const { attachClientErrorHandlers, startWithRetry } = require('../Base/Startup');
+const { attachClientErrorHandlers, attachMongooseErrorHandlers, startWithRetry } = require('../Base/Startup');
+const { refreshInviteCache } = require('../Base/InviteLog');
+const mongoose = require('mongoose');
 
 const client = global.client = new Client({ intents: Object.keys(GatewayIntentBits), partials: Object.keys(Partials) });
 attachClientErrorHandlers(client, 'Private');
@@ -62,8 +64,9 @@ client.on(Events.ClientReady, async () => {
     startGiveawayScheduler(client);
     startJailScheduler(client);
     startBoosterRoleScheduler(client);
+    await refreshInviteCache(client);
 
-    await connectBotToVoice(client, guild, system.channelID, 'Private');
+    startVoiceConnectionMonitor(client, guild, system.channelID, 'Private');
 
     setInterval(async () => {
         const document = await Settings.findOne({ id: guild.id });
@@ -105,11 +108,15 @@ client.on(Events.ClientReady, async () => {
 
 
 //gif koruma son 
-const mongoose = require('mongoose');
+attachMongooseErrorHandlers(mongoose, 'Private');
 
 async function start() {
     await startWithRetry('Private', async () => {
-        await mongoose.connect(system.database, { serverSelectionTimeoutMS: 15000 });
+        await mongoose.connect(system.database, {
+            serverSelectionTimeoutMS: 15000,
+            socketTimeoutMS: 30000,
+            heartbeatFrequencyMS: 10000,
+        });
         console.log('[DATABASE] MongoDB bağlantısı başarılı.');
         await client.login(system.Private.Token);
     });

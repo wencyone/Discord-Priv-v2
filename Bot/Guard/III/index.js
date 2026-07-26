@@ -5,7 +5,7 @@ const { Driver } = require('cherry3');
 const Settings = require('../../Schema/GuardSettings');
 const roleModel = require('../../Schema/RoleModel');
 const { startDists, roleBackup, createRole, distributeRoleMembers } = require('../Utils/Functions');
-const { connectBotToVoice } = require('../../Base/VoiceConnection');
+const { startVoiceConnectionMonitor } = require('../../Base/VoiceConnection');
 const { attachClientErrorHandlers, startWithRetry } = require('../../Base/Startup');
 
 require('colors');
@@ -50,7 +50,7 @@ client.on(Events.ClientReady, async () => {
     const guild = client.guilds.cache.get(config.serverID);
     if (!guild) return;
 
-    await connectBotToVoice(client, guild, config.channelID, 'Backup');
+    startVoiceConnectionMonitor(client, guild, config.channelID, 'Backup');
 
     let guardSettings = await Settings.findOne({ guildID: guild.id });
     if (!guardSettings) {

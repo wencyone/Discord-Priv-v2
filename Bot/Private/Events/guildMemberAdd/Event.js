@@ -5,12 +5,14 @@ const { releaseJail } = require('../../../Base/Jail');
 const { createMemberLog } = require('../../../Base/MemberLog');
 const { syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
 const { syncGuildTagRole } = require('../../../Base/GuildTagRole');
+const { logInviteJoin } = require('../../../Base/InviteLog');
 
 
 client.on(Events.GuildMemberAdd, async (member) => {
 
     const channel = member.guild.channels.cache.find((item) => item.name === 'giriş-çıkış-log');
     if (channel?.isTextBased()) channel.send(createMemberLog(member, true)).catch(() => null);
+    await logInviteJoin(member).catch((error) => console.error('[INVITE_JOIN_LOG]', error));
 
     const document = await Settings.findOne({ id: member.guild.id });
     if (!document) return;

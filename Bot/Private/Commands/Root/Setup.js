@@ -86,6 +86,7 @@ module.exports = {
                 .addOptions([
                     { label: 'Bot Komut Kanalı', value: 'botCommandChannel_text', description: 'Botun komut aldığı kanal.', emoji: wency.botCommandChannel ? '✅' : '❌' },
                     { label: 'Komut Log Kanalı', value: 'commandLogChannel_text', description: 'Kullanılan bot komutlarının düşeceği kanal.', emoji: wency.commandLogChannel ? '✅' : '❌' },
+                    { label: 'Invite Log Kanalı', value: 'inviteLogChannel_text', description: 'Sunucuya nasıl girildiğinin düşeceği kanal.', emoji: wency.inviteLogChannel ? '✅' : '❌' },
                     { label: 'Hoş Geldin Kanalı', value: 'welcomeChannel_text', description: 'Yeni gelen üyeye hoş geldin mesajının atılacağı kanal.', emoji: wency.welcomeChannel ? '✅' : '❌' },
                     { label: 'Coin Kanalı', value: 'coinChannel_text', description: 'Ship kanalı.', emoji: wency.coinChannel ? '✅' : '❌' },
                     { label: 'Ship Kanalı', value: 'shipChannel_text', description: 'Ship kanalı.', emoji: wency.shipChannel ? '✅' : '❌' },
@@ -295,6 +296,7 @@ async function logSetup(message) {
         { name: 'jail-log' },
         { name: 'mesaj-log' },
         { name: 'command-log', key: 'commandLogChannel' },
+        { name: 'invite-log', key: 'inviteLogChannel' },
         { name: 'secret-log' },
         { name: 'voice-log' },
         { name: 'giriş-çıkış-log' },
@@ -406,6 +408,7 @@ async function refreshSetup(message, wency, botMessage) {
             .addOptions([
                 { label: 'Bot Komut Kanalı', value: 'botCommandChannel_text', description: 'Botun komut aldığı kanal.', emoji: wency.botCommandChannel ? '✅' : '❌' },
                 { label: 'Komut Log Kanalı', value: 'commandLogChannel_text', description: 'Kullanılan bot komutlarının düşeceği kanal.', emoji: wency.commandLogChannel ? '✅' : '❌' },
+                { label: 'Invite Log Kanalı', value: 'inviteLogChannel_text', description: 'Sunucuya nasıl girildiğinin düşeceği kanal.', emoji: wency.inviteLogChannel ? '✅' : '❌' },
                 { label: 'Hoş Geldin Kanalı', value: 'welcomeChannel_text', description: 'Yeni gelen üyeye hoş geldin mesajının atılacağı kanal.', emoji: wency.welcomeChannel ? '✅' : '❌' },
                 { label: 'Coin Kanalı', value: 'coinChannel_text', description: 'Ship kanalı.', emoji: wency.coinChannel ? '✅' : '❌' },
                 { label: 'Ship Kanalı', value: 'shipChannel_text', description: 'Ship kanalı.', emoji: wency.shipChannel ? '✅' : '❌' },

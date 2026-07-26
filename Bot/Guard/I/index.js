@@ -7,7 +7,7 @@ const roleModel = require('../../Schema/RoleModel');
 const channelModel = require('../../Schema/ChannelModel')
 const { scheduleJob } = require('node-schedule');
 const { expressionBackup, roleBackup, channelBackup, createRole, createChannel, createExpression } = require('../Utils/Functions');
-const { connectBotToVoice } = require('../../Base/VoiceConnection');
+const { startVoiceConnectionMonitor } = require('../../Base/VoiceConnection');
 const { attachClientErrorHandlers, startWithRetry } = require('../../Base/Startup');
 const guardCommands = [
 	require('./Commands/Guard/Whitelist'),
@@ -29,7 +29,7 @@ client.on(Events.ClientReady, async () => {
 	const guild = client.guilds.cache.get(config.serverID);
 	if (!guild) return;
 
-	await connectBotToVoice(client, guild, config.channelID, 'Logger');
+	startVoiceConnectionMonitor(client, guild, config.channelID, 'Logger');
 
 	const guardSettings = await Settings.findOne({ guildID: guild.id });
 	if (!guardSettings) {

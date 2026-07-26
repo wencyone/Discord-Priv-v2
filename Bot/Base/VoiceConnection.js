@@ -9,6 +9,9 @@ const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const reconnectTimers = new Map();
 const connectionPromises = new Map();
 const reconnectAttempts = new Map();
+const voiceMonitors = new Map();
+
+const MONITOR_INTERVAL = 30000;
 
 function scheduleReconnect(client, guild, channelId, label, group) {
     const key = `${guild.id}:${group}`;
@@ -26,7 +29,33 @@ function scheduleReconnect(client, guild, channelId, label, group) {
 }
 
 function isTemporaryVoiceError(error) {
-    return /Unexpected server response: 52[0-4]|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i.test(error?.message || '');
+    return /Unexpected server response: 52[0-4]|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|ECONNREFUSED|ENETUNREACH|socket hang up|getaddrinfo/i.test(error?.message || '');
+}
+
+function startVoiceConnectionMonitor(client, guild, channelId, label = 'Bot') {
+    if (!client?.user || !guild || !channelId) return null;
+
+    const group = client.user.id;
+    const key = `${guild.id}:${group}:monitor`;
+    clearInterval(voiceMonitors.get(key));
+
+    const ensure = async () => {
+        const connection = getVoiceConnection(guild.id, group);
+        const status = connection?.state?.status;
+        if ([VoiceConnectionStatus.Ready, VoiceConnectionStatus.Connecting, VoiceConnectionStatus.Signalling].includes(status)) return;
+
+        if (status === VoiceConnectionStatus.Destroyed || status === VoiceConnectionStatus.Disconnected || !connection) {
+            await connectBotToVoice(client, guild, channelId, label).catch((error) => {
+                console.error(`[VOICE] ${label}: monitor yeniden bağlanamadı: ${error.message}`);
+            });
+        }
+    };
+
+    ensure().catch((error) => console.error(`[VOICE] ${label}: monitor kontrolü başarısız: ${error.message}`));
+    voiceMonitors.set(key, setInterval(() => {
+        ensure().catch((error) => console.error(`[VOICE] ${label}: monitor kontrolü başarısız: ${error.message}`));
+    }, MONITOR_INTERVAL));
+    return voiceMonitors.get(key);
 }
 
 async function connectBotToVoice(client, guild, channelId, label = 'Bot') {
@@ -75,11 +104,19 @@ async function connectBotToVoice(client, guild, channelId, label = 'Bot') {
         connection.on('stateChange', (_oldState, newState) => {
             if (newState.status === VoiceConnectionStatus.Destroyed) {
                 console.warn(`[VOICE] ${label}: bağlantı kapandı, yeniden bağlanma planlandı.`);
+                scheduleReconnect(client, guild, channelId, label, group);
             }
         });
 
         connection.on('error', (error) => {
-            if (!isTemporaryVoiceError(error)) console.error(`[VOICE] ${label}: ${error.message}`);
+            const delay = scheduleReconnect(client, guild, channelId, label, group);
+            const retryText = `${Math.round(delay / 1000)} saniye sonra tekrar denenecek`;
+            if (isTemporaryVoiceError(error)) {
+                console.warn(`[VOICE] ${label}: geçici Discord voice hatası: ${error.message}, ${retryText}.`);
+                return;
+            }
+
+            console.error(`[VOICE] ${label}: ${error.message}, ${retryText}.`);
         });
 
         try {
@@ -122,4 +159,4 @@ async function connectBotToVoice(client, guild, channelId, label = 'Bot') {
     }
 }
 
-module.exports = { connectBotToVoice };
+module.exports = { connectBotToVoice, startVoiceConnectionMonitor };

@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, Partials, ActivityType, Events, AuditLogEvent, codeBlock, PermissionsBitField, EmbedBuilder, StringSelectMenuBuilder, ActionRowBuilder, ChannelType, PermissionOverwriteManager, PermissionOverwrites } = require('discord.js');
 const config = require('../../../System');
 const { Driver } = require('cherry3');
-const { connectBotToVoice } = require('../../Base/VoiceConnection');
+const { startVoiceConnectionMonitor } = require('../../Base/VoiceConnection');
 const { attachClientErrorHandlers, startWithRetry } = require('../../Base/Startup');
 const { channelCreate, channelDelete, channelUpdate, channelOverwriteCreate, channelOverwriteDelete, channelOverwriteUpdate, emojiCreate, emojiDelete, emojiUpdate, roleCreate, roleDelete, roleUpdate, stickerCreate, stickerDelete, stickerUpdate, webhookCreate, webhookDelete, webhookUpdate, memberBan, memberUnban, memberKick, memberRoleUpdate, memberUpdate, guildUpdate, botAdd } = require('./Server Watcher');
 require('colors');
@@ -19,7 +19,7 @@ client.on(Events.ClientReady, async () => {
 
     const guild = client.guilds.cache.get(config.serverID);
     if (!guild) return;
-    await connectBotToVoice(client, guild, config.channelID, 'Punish');
+    startVoiceConnectionMonitor(client, guild, config.channelID, 'Punish');
 });
 
 client.on(Events.GuildAuditLogEntryCreate, async (audit, guild) => {

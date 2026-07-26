@@ -24,6 +24,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     
     botCommandChannel: { type: String, default: '' },
     commandLogChannel: { type: String, default: '' },
+    inviteLogChannel: { type: String, default: '' },
     welcomeChannel: { type: String, default: '' },
     coinChannel: { type: String, default: '' },
     shipChannel: { type: String, default: '' },

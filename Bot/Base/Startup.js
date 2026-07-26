@@ -11,7 +11,7 @@ function isFatalStartupError(error) {
 
 function isTemporaryNetworkError(error) {
     const message = String(error?.message || error || '');
-    return /Opening handshake has timed out|Connect Timeout Error|ECONNRESET|ETIMEDOUT|EAI_AGAIN|secureConnect timed out|Server selection timed out/i.test(message);
+    return /Opening handshake has timed out|Connect Timeout Error|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|ECONNREFUSED|ENETUNREACH|secureConnect timed out|Server selection timed out|connection <monitor>.*timed out|getaddrinfo/i.test(message);
 }
 
 function attachClientErrorHandlers(client, label = 'Bot') {
@@ -55,4 +55,27 @@ async function startWithRetry(label, startFn) {
     }
 }
 
-module.exports = { attachClientErrorHandlers, startWithRetry };
+function attachMongooseErrorHandlers(mongoose, label = 'Database') {
+    if (!mongoose?.connection || mongoose.connection.__wencyErrorHandlersAttached) return;
+    mongoose.connection.__wencyErrorHandlersAttached = true;
+
+    mongoose.connection.on('error', (error) => {
+        const message = error?.message || String(error);
+        if (isTemporaryNetworkError(error)) {
+            console.warn(`[DATABASE] ${label}: geçici bağlantı hatası: ${message}`);
+            return;
+        }
+
+        console.error(`[DATABASE] ${label}: ${message}`);
+    });
+
+    mongoose.connection.on('disconnected', () => {
+        console.warn(`[DATABASE] ${label}: bağlantı koptu, mongoose otomatik yeniden deneyecek.`);
+    });
+
+    mongoose.connection.on('reconnected', () => {
+        console.log(`[DATABASE] ${label}: bağlantı yeniden kuruldu.`);
+    });
+}
+
+module.exports = { attachClientErrorHandlers, attachMongooseErrorHandlers, startWithRetry };
