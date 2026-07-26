@@ -15,6 +15,41 @@ const BoosterRole = require('../Schema/BoosterRole');
 
 const SUSPEND_TIME = 3 * 24 * 60 * 60 * 1000;
 const SPECIAL_ROLES_ANCHOR = '⸻Special Roles⸻';
+const HOLOGRAPHIC_STYLE = Constants?.HolographicStyle || {
+    Primary: 0xe99dff,
+    Secondary: 0xa179ff,
+    Tertiary: 0x5c7cfa,
+};
+const SOLID_COLORS = [
+    { label: 'Teal', value: '1abc9c', emoji: '🟩' },
+    { label: 'Green', value: '2ecc71', emoji: '🟩' },
+    { label: 'Blue', value: '3498db', emoji: '🟦' },
+    { label: 'Purple', value: '9b59b6', emoji: '🟪' },
+    { label: 'Pink', value: 'e91e63', emoji: '🟥' },
+    { label: 'Yellow', value: 'f1c40f', emoji: '🟨' },
+    { label: 'Orange', value: 'e67e22', emoji: '🟧' },
+    { label: 'Red', value: 'e74c3c', emoji: '🟥' },
+    { label: 'Grey', value: '95a5a6', emoji: '⬜' },
+    { label: 'Slate', value: '607d8b', emoji: '⬛' },
+    { label: 'Dark Teal', value: '11806a', emoji: '🟩' },
+    { label: 'Dark Green', value: '1f8b4c', emoji: '🟩' },
+    { label: 'Dark Blue', value: '206694', emoji: '🟦' },
+    { label: 'Dark Purple', value: '71368a', emoji: '🟪' },
+    { label: 'Dark Pink', value: 'ad1457', emoji: '🟥' },
+    { label: 'Dark Gold', value: 'c27c0e', emoji: '🟨' },
+    { label: 'Dark Orange', value: 'a84300', emoji: '🟧' },
+    { label: 'Dark Red', value: '992d22', emoji: '🟥' },
+    { label: 'Light Grey', value: '979c9f', emoji: '⬜' },
+    { label: 'Dark Slate', value: '546e7a', emoji: '⬛' },
+];
+const GRADIENT_COLORS = [
+    { label: 'Pink -> Purple', value: 'ff73fa:9b59b6', emoji: '🎨' },
+    { label: 'Blue -> Purple', value: '3498db:9b59b6', emoji: '🎨' },
+    { label: 'Red -> Orange', value: 'ed4245:e67e22', emoji: '🎨' },
+    { label: 'Teal -> Blue', value: '1abc9c:3498db', emoji: '🎨' },
+    { label: 'Green -> Yellow', value: '2ecc71:f1c40f', emoji: '🎨' },
+    { label: 'Pink -> Red', value: 'ff73fa:ed4245', emoji: '🎨' },
+];
 
 function isBooster(member) {
     return Boolean(member?.premiumSinceTimestamp || member?.premiumSince);
@@ -29,19 +64,19 @@ function findSpecialRolesAnchor(guild) {
 
 async function getOwnedRole(interaction, requireBoost = true) {
     if (requireBoost && !isBooster(interaction.member)) {
-        await interaction.reply({ content: 'Bu sistemi yalnızca aktif boost basan üyeler kullanabilir.', flags: 64 }).catch(() => null);
+        await replyInteraction(interaction, { content: 'Bu sistemi yalnızca aktif boost basan üyeler kullanabilir.', flags: 64 }).catch(() => null);
         return null;
     }
 
     const document = await BoosterRole.findOne({ guildId: interaction.guild.id, ownerId: interaction.user.id });
     if (!document) {
-        await interaction.reply({ content: 'Önce kendine ait bir booster rolü oluşturmalısın.', flags: 64 }).catch(() => null);
+        await replyInteraction(interaction, { content: 'Önce kendine ait bir booster rolü oluşturmalısın.', flags: 64 }).catch(() => null);
         return null;
     }
     const role = interaction.guild.roles.cache.get(document.roleId) || await interaction.guild.roles.fetch(document.roleId).catch(() => null);
     if (!role) {
         await BoosterRole.deleteOne({ _id: document._id });
-        await interaction.reply({ content: 'Booster rolün sunucuda bulunamadı. Yeniden oluşturabilirsin.', flags: 64 }).catch(() => null);
+        await replyInteraction(interaction, { content: 'Booster rolün sunucuda bulunamadı. Yeniden oluşturabilirsin.', flags: 64 }).catch(() => null);
         return null;
     }
     await removeSharedMembers(interaction.guild, role, document);
@@ -64,8 +99,28 @@ async function handleBoosterRoleInteraction(client, interaction) {
         await showColorMenu(interaction);
         return true;
     }
-    if (action === 'color-select') {
-        await applyColor(interaction);
+    if (action === 'color-solid') {
+        await showSolidColorMenu(interaction);
+        return true;
+    }
+    if (action === 'color-gradient') {
+        await showGradientColorMenu(interaction);
+        return true;
+    }
+    if (action === 'color-custom') {
+        await showCustomColorModal(interaction);
+        return true;
+    }
+    if (action === 'color-holographic') {
+        await applyColor(interaction, 'holographic');
+        return true;
+    }
+    if (action === 'color-select-solid') {
+        await applyColor(interaction, `solid:${interaction.values[0]}`);
+        return true;
+    }
+    if (action === 'color-select-gradient') {
+        await applyColor(interaction, `gradient:${interaction.values[0]}`);
         return true;
     }
     if (action === 'delete') {
@@ -149,39 +204,137 @@ async function editRole(interaction) {
 async function showColorMenu(interaction) {
     const data = await getOwnedRole(interaction);
     if (!data) return;
-    const menu = new StringSelectMenuBuilder().setCustomId('booster-role:color-select').setPlaceholder('Rol rengini veya stilini seç').addOptions([
-        { label: 'Pembe', value: 'solid:ff73fa', emoji: '🌸' },
-        { label: 'Kırmızı', value: 'solid:ed4245', emoji: '🔴' },
-        { label: 'Mavi', value: 'solid:3498db', emoji: '🔵' },
-        { label: 'Mor', value: 'solid:9b59b6', emoji: '🟣' },
-        { label: 'Yeşil', value: 'solid:57f287', emoji: '🟢' },
-        { label: 'Altın', value: 'solid:f1c40f', emoji: '🟡' },
-        { label: 'Pembe → Mor Gradyan', value: 'gradient:ff73fa:9b59b6', emoji: '🎨' },
-        { label: 'Mavi → Mor Gradyan', value: 'gradient:3498db:9b59b6', emoji: '🎨' },
-        { label: 'Kırmızı → Turuncu Gradyan', value: 'gradient:ed4245:e67e22', emoji: '🎨' },
-        { label: 'Holografik', value: 'holographic', emoji: '💎' },
-    ]);
-    return interaction.reply(ephemeralPanel(['🎨 **Rol Rengi ve Stili**', 'Katı renk, gradyan veya holografik stil seçebilirsin.'], [new ActionRowBuilder().addComponents(menu)]));
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('booster-role:color-solid').setLabel('Solid').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('booster-role:color-gradient').setLabel('Gradient').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('booster-role:color-holographic').setLabel('Holographic').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('booster-role:color-custom').setLabel('Kod').setStyle(ButtonStyle.Secondary)
+    );
+
+    return interaction.reply(ephemeralPanel([
+        '## Role Style',
+        `${data.role} rolün için renk stilini seç.`,
+        'Solid normal renkler içindir. Gradient, Holographic ve Kod seçenekleri Discord rol stili destekliyorsa uygulanır.',
+    ], [row]));
 }
 
-async function applyColor(interaction) {
+async function showSolidColorMenu(interaction) {
     const data = await getOwnedRole(interaction);
     if (!data) return;
-    const value = interaction.values[0];
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId('booster-role:color-select-solid')
+        .setPlaceholder('Normal rol rengini seç')
+        .addOptions(SOLID_COLORS.map((color) => ({
+            label: color.label,
+            value: color.value,
+            emoji: color.emoji,
+            description: `#${color.value.toUpperCase()}`,
+        })));
+
+    return interaction.update(ephemeralPanel([
+        '## Role colour',
+        'Normal renklerden birini seç.',
+    ], [new ActionRowBuilder().addComponents(menu)]));
+}
+
+async function showGradientColorMenu(interaction) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId('booster-role:color-select-gradient')
+        .setPlaceholder('Gradient rol rengini seç')
+        .addOptions(GRADIENT_COLORS.map((color) => ({
+            label: color.label,
+            value: color.value,
+            emoji: color.emoji,
+            description: color.value.split(':').map((hex) => `#${hex.toUpperCase()}`).join(' -> '),
+        })));
+
+    return interaction.update(ephemeralPanel([
+        '## Gradient',
+        'Gradient rol stilini seç.',
+    ], [new ActionRowBuilder().addComponents(menu)]));
+}
+
+async function showCustomColorModal(interaction) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+
+    const modalId = `booster-role:color-custom-modal:${interaction.id}`;
+    const modal = new ModalBuilder().setCustomId(modalId).setTitle('Rol Renk Kodu').addComponents(
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('primary')
+                .setLabel('Solid renk veya gradient ilk renk')
+                .setPlaceholder('#5865F2')
+                .setMinLength(6)
+                .setMaxLength(7)
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('secondary')
+                .setLabel('Gradient ikinci renk')
+                .setPlaceholder('#EB459E')
+                .setMinLength(6)
+                .setMaxLength(7)
+                .setStyle(TextInputStyle.Short)
+                .setRequired(false)
+        )
+    );
+
+    await interaction.showModal(modal);
+    const submitted = await interaction.awaitModalSubmit({
+        filter: (item) => item.user.id === interaction.user.id && item.customId === modalId,
+        time: 120000,
+    }).catch(() => null);
+    if (!submitted) return;
+
+    const primary = normalizeHex(submitted.fields.getTextInputValue('primary'));
+    const secondaryRaw = submitted.fields.getTextInputValue('secondary');
+    const secondary = secondaryRaw ? normalizeHex(secondaryRaw) : null;
+
+    if (!primary || (secondaryRaw && !secondary)) {
+        return submitted.reply(ephemeralPanel(['❌ **Geçersiz Renk Kodu**', 'Renk kodunu `#5865F2` veya `5865F2` şeklinde yazmalısın.']));
+    }
+
+    const value = secondary ? `gradient:${primary}:${secondary}` : `solid:${primary}`;
+    return applyColor(submitted, value, true);
+}
+
+async function applyColor(interaction, selectedValue, isModal = false) {
+    const data = await getOwnedRole(interaction);
+    if (!data) return;
+    const value = selectedValue || interaction.values?.[0];
     let colors;
     if (value === 'holographic') {
-        colors = { primaryColor: Constants.HolographicStyle.Primary, secondaryColor: Constants.HolographicStyle.Secondary, tertiaryColor: Constants.HolographicStyle.Tertiary };
+        colors = { primaryColor: HOLOGRAPHIC_STYLE.Primary, secondaryColor: HOLOGRAPHIC_STYLE.Secondary, tertiaryColor: HOLOGRAPHIC_STYLE.Tertiary };
     } else {
         const [type, primary, secondary] = value.split(':');
         colors = { primaryColor: parseInt(primary, 16) };
         if (type === 'gradient') colors.secondaryColor = parseInt(secondary, 16);
     }
     try {
-        await data.role.setColors(colors, `Booster rol rengi | ${interaction.user.id}`);
-        return interaction.update(ephemeralPanel(['✅ **Rol Rengi Güncellendi**', `${data.role} rolünün rengi/stili başarıyla değiştirildi.`]));
+        if (typeof data.role.setColors === 'function') {
+            await data.role.setColors(colors, `Booster rol rengi | ${interaction.user.id}`);
+        } else if (!colors.secondaryColor && !colors.tertiaryColor) {
+            await data.role.setColor(colors.primaryColor, `Booster rol rengi | ${interaction.user.id}`);
+        } else {
+            throw new Error('Role styles are not supported by this discord.js version.');
+        }
+        const payload = ephemeralPanel(['✅ **Rol Rengi Güncellendi**', `${data.role} rolünün rengi/stili başarıyla değiştirildi.`]);
+        return isModal ? interaction.reply(payload) : interaction.update(payload);
     } catch (error) {
-        return interaction.update(ephemeralPanel(['❌ **Renk Uygulanamadı**', 'Gradyan ve holografik stiller sunucunun desteklediği rol stillerine bağlıdır.']));
+        const payload = ephemeralPanel(['❌ **Renk Uygulanamadı**', 'Gradient ve holographic stiller Discord rol stili desteğine bağlıdır.']);
+        return isModal ? interaction.reply(payload) : interaction.update(payload);
     }
+}
+
+function normalizeHex(value) {
+    const hex = String(value || '').trim().replace(/^#/, '');
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+    return hex.toLowerCase();
 }
 
 async function showDeleteConfirmation(interaction) {
@@ -263,6 +416,11 @@ function ephemeralPanel(sections, rows = []) {
     sections.forEach((section) => container.addTextDisplayComponents(new TextDisplayBuilder().setContent(section)));
     rows.forEach((row) => container.addActionRowComponents(row));
     return { flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral, components: [container], allowedMentions: { parse: [], users: [], roles: [] } };
+}
+
+function replyInteraction(interaction, payload) {
+    if (interaction.deferred || interaction.replied) return interaction.followUp(payload);
+    return interaction.reply(payload);
 }
 
 module.exports = {
