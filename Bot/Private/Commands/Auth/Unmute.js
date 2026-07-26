@@ -8,7 +8,7 @@ module.exports = {
 
     execute: async (client, message, args, wency) => {
         try {
-            if (!message.member.permissions.has(Flags.Administrator) && !wency.timeOutAuth.some((x) => message.member.roles.cache.has(x))) {
+            if (!message.member.permissions.has(Flags.Administrator) && !wency.auth.some((x) => message.member.roles.cache.has(x))) {
                 return message.reply({ content: 'Yetkin yok.' });
             }
 

@@ -1,5 +1,6 @@
 const { PermissionsBitField: { Flags } } = require('discord.js');
 const Punishment = require('../../../Schema/Punishment');
+const ForceBan = require('../../../Schema/ForceBan');
 
 module.exports = {
     name: 'unban',
@@ -24,6 +25,11 @@ module.exports = {
             const bannedMember = bans.get(targetId) || bans.find((x) => x.user?.id === targetId);
             if (!bannedMember) {
                 return message.reply({ content: 'Bu kullanıcı banlanmamış.' });
+            }
+
+            const forceBan = await ForceBan.exists({ guildId: message.guild.id, userId: targetId, active: true });
+            if (forceBan) {
+                return message.reply({ content: 'Bu kullanıcı forcebanlı. Banı sadece `.unforceban` ile kaldırılabilir.' });
             }
 
             await message.guild.members.unban(targetId).catch(async (err) => {

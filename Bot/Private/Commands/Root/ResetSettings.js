@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const Settings = require('../../../Schema/Settings');
 
 module.exports = {
@@ -5,8 +6,8 @@ module.exports = {
     aliases: ['ayarsifirla', 'settingsreset', 'ayarsifirla'],
     category: 'Root',
 
-    execute: async (client, message) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) return;
 
         await Settings.deleteOne({ id: message.guild.id });
         await Settings.create({ id: message.guild.id });

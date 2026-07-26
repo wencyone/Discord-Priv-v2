@@ -1,6 +1,13 @@
 const { AuditLogEvent, EmbedBuilder, Events } = require('discord.js');
+const ForceBan = require('../../../Schema/ForceBan');
 
 client.on(Events.GuildBanRemove, async (ban) => {
+    const forceBan = await ForceBan.findOne({ guildId: ban.guild.id, userId: ban.user.id, active: true }).catch(() => null);
+    if (forceBan) {
+        await ban.guild.bans.create(ban.user.id, { reason: `ForceBan koruması | ${forceBan.reason || 'Sebep belirtilmedi'}` }).catch(() => null);
+        return;
+    }
+
     const entry = await ban.guild.fetchAuditLogs({ limit: 5, type: AuditLogEvent.MemberBanRemove })
         .then((audit) => audit.entries.find((item) => item.targetId === ban.user.id && Date.now() - item.createdTimestamp < 10000))
         .catch(() => null);

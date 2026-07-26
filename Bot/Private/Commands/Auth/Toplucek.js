@@ -19,7 +19,7 @@ module.exports = {
         const configuredAuthRoles = Array.isArray(wency?.auth) ? wency.auth : [];
         const hasConfiguredRole = configuredAuthRoles.some((roleId) => message.member.roles.cache.has(roleId));
         if (!message.member.permissions.has(Flags.Administrator) && !hasConfiguredRole) {
-            return message.reply({ content: 'Bu komutu kullanmak için `.kur` menüsündeki Diğer Yetkililer rollerinden birine sahip olmalısın.' });
+            return message.reply({ content: 'Bu komutu kullanmak için `.kur` menüsündeki Yetkililer rollerinden birine sahip olmalısın.' });
         }
 
         const ownChannel = message.member.voice.channel;

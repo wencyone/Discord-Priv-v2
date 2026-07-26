@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { PermissionsBitField: { Flags }, ActionRowBuilder, RoleSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Settings = require('../../../Schema/Settings')
 
@@ -7,7 +8,7 @@ module.exports = {
     category: 'Root',
 
     execute: async (client, message, args, wency) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+        if (!hasOwnerRole(message.member, wency)) return;
 
         if (!['ekle', 'çıkar', 'liste'].some(x => args[0] == x)) return message.reply({ content: `Lütfen geçerli bir işlem belirtin. \`ekle\`, \`çıkar\`, \`liste\`` })
 

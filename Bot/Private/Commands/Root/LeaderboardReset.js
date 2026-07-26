@@ -1,6 +1,7 @@
 const UserModel = require('../../../Schema/User');
 const JoinModel = require('../../../Schema/Join');
 const Settings = require('../../../Schema/Settings');
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { updateLeaderboard } = require('../../../Base/LeaderboardUtil');
 
 module.exports = {
@@ -8,8 +9,8 @@ module.exports = {
     aliases: ['tzero', 'topsifirla', 'topsıfırla', 'statsifirla', 'lbsifirla'],
     category: 'Root',
 
-    execute: async (client, message) => {
-        if (!global.system.ownerID.includes(message.author.id)) {
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) {
             return message.reply({ content: 'Bu komutu kullanma yetkiniz bulunmuyor.' })
                 .then((reply) => setTimeout(() => reply.delete().catch(() => {}), 5000));
         }

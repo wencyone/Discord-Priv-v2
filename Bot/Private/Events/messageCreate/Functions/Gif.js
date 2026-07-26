@@ -9,8 +9,9 @@ module.exports = async function Gif(client, message) {
 
     if (document.gifGuard === false) return false;
 
+    const gifAuthRoles = Array.isArray(document.gifAuthRole) ? document.gifAuthRole : (document.gifAuthRole ? [document.gifAuthRole] : []);
     const isOwner = global.system?.ownerID?.includes(message.author.id) === true;
-    const hasGifPermission = document.gifAuthRole && message.member?.roles.cache.has(document.gifAuthRole);
+    const hasGifPermission = gifAuthRoles.some((roleId) => message.member?.roles.cache.has(roleId));
     if (isOwner || hasGifPermission) return false;
 
     const isGifUrl = (value) => {

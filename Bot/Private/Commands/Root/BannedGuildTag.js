@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -22,8 +23,8 @@ module.exports = {
     aliases: ['gtag', 'yasaklıtag', 'ytag'],
     category: 'Root',
 
-    execute: async (client, message, args) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) return;
 
         const action = args[0]?.toLocaleLowerCase('tr-TR');
         if (!action) return showDashboard(client, message);

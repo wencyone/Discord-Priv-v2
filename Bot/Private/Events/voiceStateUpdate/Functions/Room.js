@@ -1,6 +1,7 @@
 const { PermissionsBitField: { Flags }, Events, ChannelType, bold, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Settings = require('../../../../Schema/Settings');
 const { formatPrivateRoomName } = require('../../../../Base/PrivateRoom');
+const { sendSecretRoomLog } = require('../../../../Base/SecretRoomLog');
 
 const VOICE_RESTRICTION_RELEASE_DELAY = 2000;
 
@@ -47,6 +48,9 @@ module.exports = async function Room(client, oldState, newState) {
                     return;
                 } else {
                     if (channel.members.size === 0) {
+                        await sendSecretRoomLog(member.guild, member, 0xed4245, [
+                            `🗑️ ${member} (${member.id}) kullanıcısının **${channel.name}** özel odası boş kaldığı için silindi!`,
+                        ]);
                         await channel.delete().catch(e => console.log("Kanal silinemedi:", e));
                         await Settings.updateOne({ id: member.guild.id }, { $pull: { privateRooms: { owner: member.id } } });
                     }
@@ -108,6 +112,9 @@ module.exports = async function Room(client, oldState, newState) {
         await newState.setChannel(newChannel).catch(() => null);
         await sendRoomControlButtons(client, newChannel);
         await Settings.updateOne({ id: member.guild.id }, { $push: { privateRooms: { owner: member.id, channel: newChannel.id } } });
+        await sendSecretRoomLog(member.guild, member, 0xed4245, [
+            `✅ ${member} (${member.id}) kullanıcısı ${newChannel} kanalını <t:${Math.floor(Date.now() / 1000)}:R> tarihinde oluşturdu!`,
+        ]);
     }
 
     if (!oldState.channel && newState.channel) {
@@ -126,6 +133,9 @@ module.exports = async function Room(client, oldState, newState) {
 
         if (isAdmin && !isAllow && isLock && !hasSlashRole && !hasXRole) {
             if (member?.voice.channel) {
+                await sendSecretRoomLog(member.guild, member, 0xb026ff, [
+                    `✅ ${member} (${member.id}) kullanıcısı ${channel} kanalına <t:${Math.floor(Date.now() / 1000)}:R> izinsiz giriş yaptı!`,
+                ]);
                 member.send({ content: `${bold(channel.name)} adlı özel oda için yetkiniz bulunmamaktadır.` }).catch();
                 channel?.send({ content: `${member} kullanıcısı kanala katıldı fakat kanalda izni olmadığı için bağlantısı kesildi...` }).then((e) => deleteMessageLater(e, 20000)).catch(() => null);
                 member.voice.disconnect();
@@ -150,6 +160,9 @@ module.exports = async function Room(client, oldState, newState) {
 
         if (isAdmin && !isAllow && isLock && !hasSlashRole && !hasXRole) {
             if (member?.voice.channel) {
+                await sendSecretRoomLog(member.guild, member, 0xb026ff, [
+                    `✅ ${member} (${member.id}) kullanıcısı ${channel} kanalına <t:${Math.floor(Date.now() / 1000)}:R> izinsiz giriş yaptı!`,
+                ]);
                 member.send({ content: `${bold(channel.name)} adlı özel oda için yetkiniz bulunmamaktadır.` }).catch(() => null);
                 channel.send({ content: `${member} kullanıcısı kanala katıldı fakat kanalda izni olmadığı için bağlantısı kesildi...` }).then((e) => deleteMessageLater(e, 20000)).catch(() => null);
                 member.voice.disconnect();
@@ -163,6 +176,9 @@ module.exports = async function Room(client, oldState, newState) {
         const control = document?.privateRooms.find(x => x.channel === channel.id);
         if (!control) return;
         if (channel?.members.size === 0) {
+            await sendSecretRoomLog(member.guild, member, 0xed4245, [
+                `🗑️ ${member} (${member.id}) kullanıcısının **${channel.name}** özel odası boş kaldığı için silindi!`,
+            ]);
             await channel.delete().catch(e => console.log("Kanal silinemedi:", e));
             await Settings.updateOne({ id: member.guild.id }, { $pull: { privateRooms: { owner: member.id } } });
         }

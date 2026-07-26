@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -9,7 +10,9 @@ const {
     TextDisplayBuilder,
 } = require('discord.js');
 const Punishment = require('../../../Schema/Punishment');
+const ForceBan = require('../../../Schema/ForceBan');
 const { releaseJail } = require('../../../Base/Jail');
+const { sendAffLog } = require('../../../Base/AffLog');
 
 function createPanel(customIds, state, disabled = false) {
     const statusLabels = {
@@ -51,10 +54,18 @@ function createPanel(customIds, state, disabled = false) {
 
 async function pardonBans(message) {
     const bans = await message.guild.bans.fetch();
+    const forceBans = await ForceBan.find({ guildId: message.guild.id, active: true }).lean().catch(() => []);
+    const forceBanIds = new Set(forceBans.map((item) => item.userId));
     let removed = 0;
     let failed = 0;
+    let skipped = 0;
 
     for (const ban of bans.values()) {
+        if (forceBanIds.has(ban.user.id)) {
+            skipped++;
+            continue;
+        }
+
         try {
             await message.guild.members.unban(ban.user.id, `Toplu af | Yetkili: ${message.author.tag} (${message.author.id})`);
             await Punishment.updateMany(
@@ -68,9 +79,10 @@ async function pardonBans(message) {
         }
     }
 
-    return failed
+    const text = failed
         ? `Toplam ${removed} kişinin banı açıldı, ${failed} işlem başarısız.`
         : `Toplam ${removed} kişinin banı açıldı.`;
+    return { removed, failed, skipped, text: skipped ? `${text} ${skipped} forceban atlandı.` : text };
 }
 
 async function pardonJails(client, message) {
@@ -95,9 +107,21 @@ async function pardonJails(client, message) {
         }
     }
 
-    return failed
+    const text = failed
         ? `Toplam ${removed} kişinin jaili açıldı, ${failed} işlem başarısız.`
         : `Toplam ${removed} kişinin jaili açıldı.`;
+    return { removed, failed, skipped: 0, text };
+}
+
+async function sendAllAffLog(message, type, result) {
+    const title = type === 'jail' ? 'Toplu Jail Affı' : 'Toplu Ban Affı';
+    const fields = [
+        { name: 'Yetkili', value: `${message.author} (\`${message.author.id}\`)`, inline: true },
+        { name: type === 'jail' ? 'Jaili Açılan' : 'Banı Açılan', value: `${result.removed}`, inline: true },
+        { name: 'Başarısız', value: `${result.failed}`, inline: true },
+    ];
+    if (result.skipped) fields.push({ name: 'ForceBan Atlanan', value: `${result.skipped}`, inline: true });
+    await sendAffLog(message.guild, title, fields, type === 'jail' ? 0x57f287 : 0xfee75c);
 }
 
 module.exports = {
@@ -105,8 +129,8 @@ module.exports = {
     aliases: ['af', 'allaf'],
     category: 'Root',
 
-    execute: async (client, message) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) return;
 
         const customIds = {
             jail: `allaff:jail:${message.author.id}`,
@@ -124,7 +148,7 @@ module.exports = {
 
         collector.on('collect', async (interaction) => {
             if (!Object.values(customIds).includes(interaction.customId)) return;
-            if (interaction.user.id !== message.author.id || !global.system.ownerID.includes(interaction.user.id)) {
+            if (interaction.user.id !== message.author.id || !hasOwnerRole(interaction.member, wency)) {
                 return interaction.reply({ content: 'Bu paneli sadece komutu kullanan bot sahibi kullanabilir.', flags: MessageFlags.Ephemeral });
             }
 
@@ -138,6 +162,8 @@ module.exports = {
                 state[type].result = type === 'jail'
                     ? await pardonJails(client, message)
                     : await pardonBans(message);
+                await sendAllAffLog(message, type, state[type].result);
+                state[type].result = state[type].result.text;
                 state[type].status = 'completed';
             } catch (error) {
                 state[type].status = 'failed';

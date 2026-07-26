@@ -20,7 +20,7 @@ module.exports = {
     category: 'Auth',
 
     execute: async (client, message, args, wency, embed) => {
-        if (!message.member.permissions.has(Flags.Administrator) && !wency.timeOutAuth.some(x => message.member.roles.cache.has(x)))
+        if (!message.member.permissions.has(Flags.Administrator) && !wency.auth.some(x => message.member.roles.cache.has(x)))
             return message.reply({ content: 'Yetkin yok.' });
 
         const member = message.mentions.members.first() || message.guild.members.cache.get(args[0]);

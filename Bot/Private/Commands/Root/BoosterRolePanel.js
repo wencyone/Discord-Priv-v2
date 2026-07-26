@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -14,8 +15,8 @@ module.exports = {
     aliases: ['boostrolpanel', 'boostpanel', 'boostrol'],
     category: 'Root',
 
-    execute: async (client, message) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) return;
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('booster-role:create').setLabel('Oluştur').setEmoji('✨').setStyle(ButtonStyle.Success),

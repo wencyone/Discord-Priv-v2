@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { EmbedBuilder } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const { getUserGuildTag } = require('../../../Base/GuildTagRole');
@@ -7,8 +8,8 @@ module.exports = {
     aliases: ['guild-entegre', 'tagentegre', 'tag-entegre'],
     category: 'Root',
 
-    execute: async (client, message) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) return;
 
         const settings = await Settings.findOne({ id: message.guild.id });
         if (!settings?.guildTagRole) return message.reply({ content: 'Guild Tag Rolü ayarlanmamış. `.kur` menüsünden Guild Tag Rolü seçmelisin.' });

@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const {
     ActionRowBuilder,
     ContainerBuilder,
@@ -13,8 +14,8 @@ module.exports = {
     aliases: ['menü'],
     category: 'Root',
 
-    execute: async (client, message) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) return;
 
         const menu = new StringSelectMenuBuilder()
             .setCustomId('color-role-select')

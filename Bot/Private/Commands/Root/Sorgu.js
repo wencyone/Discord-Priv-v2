@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, codeBlock } = require('discord.js');
 const axios = require('axios');
 
@@ -6,8 +7,8 @@ module.exports = {
     aliases: ['sorgu'],
     category: 'Root',
 
-    execute: async (client, message, args) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) return;
 
         const user = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
         if (!user) return message.reply({ content: '> Lütfen bir kullanıcı belirtin.' });

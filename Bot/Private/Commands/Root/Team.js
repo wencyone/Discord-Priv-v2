@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -24,8 +25,8 @@ module.exports = {
     aliases: ['team'],
     category: 'Root',
 
-    execute: async (client, message, args) => {
-        if (!global.system.ownerID.includes(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return message.reply('Bu komutu kullanmak için yönetici olmalısın.');
         }
 

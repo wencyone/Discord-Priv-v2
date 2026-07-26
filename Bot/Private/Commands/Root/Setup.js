@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType, PermissionFlagsBits, codeBlock, EmbedBuilder, bold, ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const SpamGuard = require('../../Events/messageCreate/Functions/Guard');
@@ -16,7 +17,7 @@ module.exports = {
     category: 'Root',
 
     execute: async (client, message, args, wency) => {
-        if (!global.system.ownerID.includes(message.author.id)) return;
+        if (!hasOwnerRole(message.member, wency)) return;
 
         const setupEmbed = new EmbedBuilder({
             author: { name: message.guild.name, iconURL: message.guild.iconURL() },
@@ -65,13 +66,13 @@ module.exports = {
                 .setCustomId('roles')
                 .addOptions([
                     { label: 'Ban ve Jail Yetkilileri', value: 'banAuth_array', description: '(Ban, Jail)', emoji: wency.banAuth && wency.banAuth.length > 0 ? '✅' : '❌' },
-                    { label: 'Mute Yetkilileri', value: 'timeOutAuth_array', description: '(Timeout)', emoji: wency.timeOutAuth && wency.timeOutAuth.length > 0 ? '✅' : '❌' },
-                    { label: 'Diğer Yetkililer', value: 'auth_array', description: '(Referans, Nuke, Sil, Vip, Kilit, Say, Rol)', emoji: wency.auth && wency.auth.length > 0 ? '✅' : '❌' },
-                    { label: 'GIF İzinli Rol', value: 'gifAuthRole_string', description: 'GIF göndermesine izin verilen rol.', emoji: wency.gifAuthRole ? '✅' : '❌' },
+                    { label: 'Yetkililer', value: 'auth_array', description: '(Referans, Mute, Sil, Vip, Kilit, Say, Rol)', emoji: wency.auth && wency.auth.length > 0 ? '✅' : '❌' },
+                    { label: 'GIF İzinli Roller', value: 'gifAuthRole_array', description: 'GIF göndermesine izin verilen roller.', emoji: wency.gifAuthRole && wency.gifAuthRole.length > 0 ? '✅' : '❌' },
                     { label: 'Vip Rolü', value: 'vipRole_string', description: 'Vip rolü.', emoji: wency.vipRole ? '✅' : '❌' },
                     { label: 'Jail Rolü', value: 'jailRole_string', description: 'Jail verilen kullanıcıya uygulanacak rol.', emoji: wency.jailRole ? '✅' : '❌' },
                     { label: 'Guild Tag Rolü', value: 'guildTagRole_string', description: 'Guild tag alan kullanıcıya verilecek rol.', emoji: wency.guildTagRole ? '✅' : '❌' },
-                    { label: 'Family Rolü', value: 'familyRole_string', description: 'Family rolü.', emoji: wency.familyRole ? '✅' : '❌' },
+                    { label: 'Owner Rolleri', value: 'ownerRole_array', description: 'Kurucu komutlarını kullanabilen owner rolleri.', emoji: wency.ownerRole && wency.ownerRole.length > 0 ? '✅' : '❌' },
+                    { label: 'Family Rolleri', value: 'familyRole_array', description: 'Family rolleri.', emoji: wency.familyRole && wency.familyRole.length > 0 ? '✅' : '❌' },
                     { label: 'Erkek Rolü', value: 'manRole_string', description: 'Erkek rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.manRole ? '✅' : '❌' },
                     { label: 'Kadın Rolü', value: 'womanRole_string', description: 'Kadın rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.womanRole ? '✅' : '❌' },
                     { label: 'Kayıtlı Rolü', value: 'registeredRole_string', description: 'Kayıtlı rolü.', emoji: wency.registeredRole ? '✅' : '❌' },
@@ -84,6 +85,7 @@ module.exports = {
                 .setCustomId('channels')
                 .addOptions([
                     { label: 'Bot Komut Kanalı', value: 'botCommandChannel_text', description: 'Botun komut aldığı kanal.', emoji: wency.botCommandChannel ? '✅' : '❌' },
+                    { label: 'Komut Log Kanalı', value: 'commandLogChannel_text', description: 'Kullanılan bot komutlarının düşeceği kanal.', emoji: wency.commandLogChannel ? '✅' : '❌' },
                     { label: 'Hoş Geldin Kanalı', value: 'welcomeChannel_text', description: 'Yeni gelen üyeye hoş geldin mesajının atılacağı kanal.', emoji: wency.welcomeChannel ? '✅' : '❌' },
                     { label: 'Coin Kanalı', value: 'coinChannel_text', description: 'Ship kanalı.', emoji: wency.coinChannel ? '✅' : '❌' },
                     { label: 'Ship Kanalı', value: 'shipChannel_text', description: 'Ship kanalı.', emoji: wency.shipChannel ? '✅' : '❌' },
@@ -288,9 +290,12 @@ async function logSetup(message) {
         { name: 'guard-log' },
         { name: 'backup-log' },
         { name: 'ban-log' },
+        { name: 'aff-log' },
         { name: 'mute-log' },
         { name: 'jail-log' },
         { name: 'mesaj-log' },
+        { name: 'command-log', key: 'commandLogChannel' },
+        { name: 'secret-log' },
         { name: 'voice-log' },
         { name: 'giriş-çıkış-log' },
         { name: 'rol-log' },
@@ -321,18 +326,20 @@ async function logSetup(message) {
         }).catch(() => null);
     }
 
+    const updates = {};
     for (const channel of channels) {
-        const logChannel = message.guild.channels.cache.find((item) =>
+        let logChannel = message.guild.channels.cache.find((item) =>
             item.type === ChannelType.GuildText && item.name === channel.name
         );
         if (logChannel) {
             if (logChannel.parentId !== logsCategory.id) {
                 await logChannel.setParent(logsCategory.id, { lockPermissions: false }).catch(() => null);
             }
+            if (channel.key) updates[channel.key] = logChannel.id;
             continue;
         }
 
-        await message.guild.channels.create({
+        logChannel = await message.guild.channels.create({
             name: channel.name,
             type: ChannelType.GuildText,
             parent: logsCategory.id,
@@ -343,6 +350,11 @@ async function logSetup(message) {
                 }
             ]
         });
+        if (channel.key) updates[channel.key] = logChannel.id;
+    }
+
+    if (Object.keys(updates).length) {
+        await Settings.updateOne({ id: message.guild.id }, { $set: updates }, { upsert: true });
     }
 
     message.reply({ content: 'Tüm log kanalları başarıyla kuruldu ve eksik kanallar tamamlandı.' });
@@ -374,13 +386,13 @@ async function refreshSetup(message, wency, botMessage) {
             .setCustomId('roles')
             .addOptions([
                 { label: 'Ban ve Jail Yetkilileri', value: 'banAuth_array', description: '(Ban, Jail)', emoji: wency.banAuth && wency.banAuth.length > 0 ? '✅' : '❌' },
-                { label: 'Mute Yetkilileri', value: 'timeOutAuth_array', description: '(Timeout)', emoji: wency.timeOutAuth && wency.timeOutAuth.length > 0 ? '✅' : '❌' },
-                { label: 'Diğer Yetkililer', value: 'auth_array', description: '(Referans, Nuke, Sil, Vip, Kilit, Say, Rol)', emoji: wency.auth && wency.auth.length > 0 ? '✅' : '❌' },
-                { label: 'GIF İzinli Rol', value: 'gifAuthRole_string', description: 'GIF göndermesine izin verilen rol.', emoji: wency.gifAuthRole ? '✅' : '❌' },
+                { label: 'Yetkililer', value: 'auth_array', description: '(Referans, Mute, Sil, Vip, Kilit, Say, Rol)', emoji: wency.auth && wency.auth.length > 0 ? '✅' : '❌' },
+                { label: 'GIF İzinli Roller', value: 'gifAuthRole_array', description: 'GIF göndermesine izin verilen roller.', emoji: wency.gifAuthRole && wency.gifAuthRole.length > 0 ? '✅' : '❌' },
                 { label: 'Vip Rolü', value: 'vipRole_string', description: 'Vip rolü.', emoji: wency.vipRole ? '✅' : '❌' },
                 { label: 'Jail Rolü', value: 'jailRole_string', description: 'Jail verilen kullanıcıya uygulanacak rol.', emoji: wency.jailRole ? '✅' : '❌' },
                 { label: 'Guild Tag Rolü', value: 'guildTagRole_string', description: 'Guild tag alan kullanıcıya verilecek rol.', emoji: wency.guildTagRole ? '✅' : '❌' },
-                { label: 'Family Rolü', value: 'familyRole_string', description: 'Family rolü.', emoji: wency.familyRole ? '✅' : '❌' },
+                { label: 'Owner Rolleri', value: 'ownerRole_array', description: 'Kurucu komutlarını kullanabilen owner rolleri.', emoji: wency.ownerRole && wency.ownerRole.length > 0 ? '✅' : '❌' },
+                { label: 'Family Rolleri', value: 'familyRole_array', description: 'Family rolleri.', emoji: wency.familyRole && wency.familyRole.length > 0 ? '✅' : '❌' },
                 { label: 'Erkek Rolü', value: 'manRole_string', description: 'Erkek rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.manRole ? '✅' : '❌' },
                 { label: 'Kadın Rolü', value: 'womanRole_string', description: 'Kadın rolü. (Cinsiyet Sistemini açman gerekir.)', emoji: wency.womanRole ? '✅' : '❌' },
                 { label: 'Kayıtlı Rolü', value: 'registeredRole_string', description: 'Kayıtlı rolü.', emoji: wency.registeredRole ? '✅' : '❌' },
@@ -393,6 +405,7 @@ async function refreshSetup(message, wency, botMessage) {
             .setCustomId('channels')
             .addOptions([
                 { label: 'Bot Komut Kanalı', value: 'botCommandChannel_text', description: 'Botun komut aldığı kanal.', emoji: wency.botCommandChannel ? '✅' : '❌' },
+                { label: 'Komut Log Kanalı', value: 'commandLogChannel_text', description: 'Kullanılan bot komutlarının düşeceği kanal.', emoji: wency.commandLogChannel ? '✅' : '❌' },
                 { label: 'Hoş Geldin Kanalı', value: 'welcomeChannel_text', description: 'Yeni gelen üyeye hoş geldin mesajının atılacağı kanal.', emoji: wency.welcomeChannel ? '✅' : '❌' },
                 { label: 'Coin Kanalı', value: 'coinChannel_text', description: 'Ship kanalı.', emoji: wency.coinChannel ? '✅' : '❌' },
                 { label: 'Ship Kanalı', value: 'shipChannel_text', description: 'Ship kanalı.', emoji: wency.shipChannel ? '✅' : '❌' },

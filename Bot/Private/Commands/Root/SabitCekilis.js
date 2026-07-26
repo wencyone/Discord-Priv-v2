@@ -1,5 +1,6 @@
 const ms = require('ms');
 const Giveaway = require('../../../Schema/Giveaway');
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { createGiveawayMessage } = require('../../../Base/Giveaway');
 
 function parseDuration(value) {
@@ -17,8 +18,8 @@ module.exports = {
     aliases: ['sabitçekiliş', 'hilelicekilis', 'hileliçekiliş'],
     category: 'Root',
 
-    execute: async (client, message, args) => {
-        if (!global.system.ownerID.includes(message.author.id)) {
+    execute: async (client, message, args, wency) => {
+        if (!hasOwnerRole(message.member, wency)) {
             return message.reply({ content: 'Bu komutu sadece bot owner kullanabilir.' });
         }
 

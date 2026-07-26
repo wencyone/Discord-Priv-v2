@@ -8,7 +8,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     linkGuard: { type: Boolean, default: true },
     spamGuard: { type: Boolean, default: false },
     gifGuard: { type: Boolean, default: true },
-    gifAuthRole: { type: String, default: '' },
+    gifAuthRole: { type: [String], default: [] },
     clickCount: { type: Number, default: 0 },
     manClickCount: { type: Number, default: 0 },
     womanClickCount: { type: Number, default: 0 },
@@ -23,6 +23,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     bannedGuildTags: { type: [Object], default: [] },
     
     botCommandChannel: { type: String, default: '' },
+    commandLogChannel: { type: String, default: '' },
     welcomeChannel: { type: String, default: '' },
     coinChannel: { type: String, default: '' },
     shipChannel: { type: String, default: '' },
@@ -34,13 +35,13 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     registeredRole: { type: String, default: '' },
     manRole: { type: String, default: '' },
     womanRole: { type: String, default: '' },
-    familyRole: { type: String, default: '' }, 
+    familyRole: { type: [String], default: [] },
     vipRole: { type: String, default: '' },
     jailRole: { type: String, default: '' },
     guildTagRole: { type: String, default: '' },
+    ownerRole: { type: [String], default: [] },
 
     banAuth: { type: [String], default: [] },
-    timeOutAuth: { type: [String], default: [] },
     auth: { type: [String], default: [] },
 
 }))

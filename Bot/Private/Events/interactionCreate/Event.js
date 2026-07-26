@@ -3,6 +3,7 @@ const Settings = require('../../../Schema/Settings');
 const { handleGiveawayButton } = require('../../../Base/Giveaway');
 const { formatPrivateRoomName } = require('../../../Base/PrivateRoom');
 const { getUserGuildTag } = require('../../../Base/GuildTagRole');
+const { sendSecretRoomLog } = require('../../../Base/SecretRoomLog');
 
 const inviteRegex = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discordapp\.com\/invite)\/([a-zA-Z0-9\-]{2,32})\b/;
 const adsRegex = /([^a-zA-ZIıİiÜüĞğŞşÖöÇç\s])+/gi;
@@ -229,6 +230,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                     content: `Oda ismi başarıyla değiştirildi: ${bold(formattedChannelName)}`,
                     flags: 64
                 }).catch(() => null);
+                await sendSecretRoomLog(i.guild, member, 0x22c7c9, [
+                    `✏️ ${member} (${member.id}) kullanıcısı özel oda ismini **${formattedChannelName}** olarak değiştirdi!`,
+                ]);
             };
         }
 
@@ -312,6 +316,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                 content: `Oda limiti başarıyla değiştirildi: ${bold(channelLimit)}`,
                 flags: 64
             }).catch(() => null);
+            await sendSecretRoomLog(i.guild, member, 0x22c7c9, [
+                `👥 ${member} (${member.id}) kullanıcısı ${channel} özel oda limitini **${channelLimit}** olarak ayarladı!`,
+            ]);
         }
 
         if (i.customId === 'lockOrUnlock') {
@@ -374,9 +381,15 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
             if (permissions && permissions.deny.has(PermissionFlagsBits.Connect)) {
                 await channel.permissionOverwrites.edit(i.guild.id, { 1048576: true });
                 await i.reply({ content: 'Kanal herkese açıldı.', flags: 64 }).catch(() => null);
+                await sendSecretRoomLog(i.guild, member, 0x45c486, [
+                    `🔓 ${member} (${member.id}) kullanıcısının ${channel} özel oda kanalı herkese açılmıştır!`,
+                ]);
             } else {
                 await channel.permissionOverwrites.edit(i.guild.id, { 1048576: false });
                 await i.reply({ content: 'Kanal herkese kapatıldı.', flags: 64 }).catch(() => null);
+                await sendSecretRoomLog(i.guild, member, 0x22c7c9, [
+                    `🔒 ${member} (${member.id}) kullanıcısının ${channel} özel oda kanalı kilitlenmiştir!`,
+                ]);
             }
         }
 
@@ -447,9 +460,15 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
             if (permissions && permissions.deny.has(PermissionFlagsBits.ViewChannel)) {
                 await channel.permissionOverwrites.edit(i.guild.id, { 1024: true });
                 await i.reply({ content: 'Kanal herkese görünür yapıldı.', flags: 64 }).catch(() => null);
+                await sendSecretRoomLog(i.guild, member, 0x45c486, [
+                    `👁️ ${member} (${member.id}) kullanıcısı ${channel} özel oda kanalını görünür yaptı!`,
+                ]);
             } else {
                 await channel.permissionOverwrites.edit(i.guild.id, { 1024: false });
                 await i.reply({ content: 'Kanal herkese gizlendi.', flags: 64 }).catch(() => null);
+                await sendSecretRoomLog(i.guild, member, 0x22c7c9, [
+                    `🙈 ${member} (${member.id}) kullanıcısı ${channel} özel oda kanalını gizledi!`,
+                ]);
             }
         }
 
@@ -578,6 +597,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                         content: `<@${userId}> kullanıcısının özel oda izni kaldırıldı.`,
                         components: []
                     });
+                    await sendSecretRoomLog(i.guild, member, 0xfee75c, [
+                        `➖ ${member} (${member.id}) kullanıcısı <@${userId}> (${userId}) kullanıcısının ${channel} özel oda iznini kaldırdı!`,
+                    ]);
                 } else if (x.customId === addPermissionId) {
                     const userId = x.values[0];
                     await channel.permissionOverwrites.edit(userId, {
@@ -587,6 +609,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                         content: `<@${userId}> kullanıcısına özel odaya bağlanma izni verildi.`,
                         components: []
                     });
+                    await sendSecretRoomLog(i.guild, member, 0x45c486, [
+                        `➕ ${member} (${member.id}) kullanıcısı <@${userId}> (${userId}) kullanıcısına ${channel} özel oda izni verdi!`,
+                    ]);
                 } else if ([addPermissionById, removePermissionById].includes(x.customId)) {
                     const isAdd = x.customId === addPermissionById;
                     const modalId = `room_permission_id_modal:${x.id}`;
@@ -623,7 +648,11 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                             ? `${selectedMember} kullanıcısına özel odaya bağlanma izni verildi.`
                             : `${selectedMember} kullanıcısının özel oda izni kaldırıldı.`,
                         flags: 64
-                    }).catch(() => null);
+                    }).catch(() => null).then(() => sendSecretRoomLog(i.guild, member, isAdd ? 0x45c486 : 0xfee75c, [
+                        isAdd
+                            ? `➕ ${member} (${member.id}) kullanıcısı ${selectedMember} (${selectedMember.id}) kullanıcısına ${channel} özel oda izni verdi!`
+                            : `➖ ${member} (${member.id}) kullanıcısı ${selectedMember} (${selectedMember.id}) kullanıcısının ${channel} özel oda iznini kaldırdı!`,
+                    ]));
                 }
             });
         }
@@ -724,7 +753,10 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                         [PermissionFlagsBits.ViewChannel]: false
                     });
                     if (selectedMember.voice.channelId === channel.id) await selectedMember.voice.disconnect('Özel oda sahibi tarafından yasaklandı.').catch(() => null);
-                    return submitted.reply({ content: `${selectedMember} kullanıcısının odaya girişi yasaklandı.`, flags: 64 }).catch(() => null);
+                    await submitted.reply({ content: `${selectedMember} kullanıcısının odaya girişi yasaklandı.`, flags: 64 }).catch(() => null);
+                    return sendSecretRoomLog(i.guild, member, 0xed4245, [
+                        `⛔ ${member} (${member.id}) kullanıcısı ${selectedMember} (${selectedMember.id}) kullanıcısını ${channel} özel odasından engelledi!`,
+                    ]);
                 }
 
                 const userId = x.values[0];
@@ -733,6 +765,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                     [PermissionFlagsBits.ViewChannel]: false
                 });
                 await x.update({ content: `<@${userId}> kullanıcısının odaya girişi yasaklandı.`, components: [] }).catch(() => null);
+                await sendSecretRoomLog(i.guild, member, 0xed4245, [
+                    `⛔ ${member} (${member.id}) kullanıcısı <@${userId}> (${userId}) kullanıcısını ${channel} özel odasından engelledi!`,
+                ]);
             });
         }
 
@@ -782,6 +817,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
                 }).catch(() => null);
 
                 await x.update({ content: `Oda sahipliği ${selectedMember} kullanıcısına devredildi.`, components: [] }).catch(() => null);
+                await sendSecretRoomLog(i.guild, member, 0xfee75c, [
+                    `👑 ${member} (${member.id}) kullanıcısı ${channel} özel oda sahipliğini ${selectedMember} (${selectedMember.id}) kullanıcısına devretti!`,
+                ]);
             });
         }
 
@@ -792,6 +830,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
 
             await Settings.updateOne({ id: member.guild.id }, { $pull: { privateRooms: { channel: channel.id } } });
             await i.reply({ content: 'Özel odanız silindi.', flags: 64 }).catch(() => null);
+            await sendSecretRoomLog(i.guild, member, 0xed4245, [
+                `🗑️ ${member} (${member.id}) kullanıcısı **${channel.name}** özel odasını sildi!`,
+            ]);
             await channel.delete().catch(() => null);
         }
 
@@ -826,6 +867,9 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
             );
 
             await i.update({ embeds: [], content: 'Oda artık size ait.', components: [] }).catch(() => null);
+            await sendSecretRoomLog(i.guild, member, 0xfee75c, [
+                `👑 ${member} (${member.id}) kullanıcısı ${channel} özel oda sahipliğini üstlendi!`,
+            ]);
         }
     }
     } catch (err) {
@@ -892,7 +936,10 @@ async function handleRoomMemberPermissionContext(interaction, document) {
             [PermissionFlagsBits.ViewChannel]: false,
         });
         if (target.voice.channelId === channel.id) await target.voice.disconnect('Özel oda sahibi tarafından engellendi.').catch(() => null);
-        return interaction.reply({ content: `${target} kullanıcısının odaya girişi engellendi.`, flags: 64 }).catch(() => null);
+        await interaction.reply({ content: `${target} kullanıcısının odaya girişi engellendi.`, flags: 64 }).catch(() => null);
+        return sendSecretRoomLog(interaction.guild, member, 0xed4245, [
+            `⛔ ${member} (${member.id}) kullanıcısı ${target} (${target.id}) kullanıcısını ${channel} özel odasından engelledi!`,
+        ]);
     }
 
     if (interaction.commandName === roomContextCommands.allow) {
@@ -900,7 +947,10 @@ async function handleRoomMemberPermissionContext(interaction, document) {
             [PermissionFlagsBits.Connect]: true,
             [PermissionFlagsBits.ViewChannel]: true,
         });
-        return interaction.reply({ content: `${target} kullanıcısına özel odaya giriş izni verildi.`, flags: 64 }).catch(() => null);
+        await interaction.reply({ content: `${target} kullanıcısına özel odaya giriş izni verildi.`, flags: 64 }).catch(() => null);
+        return sendSecretRoomLog(interaction.guild, member, 0x45c486, [
+            `➕ ${member} (${member.id}) kullanıcısı ${target} (${target.id}) kullanıcısına ${channel} özel oda izni verdi!`,
+        ]);
     }
 }
 
@@ -946,7 +996,10 @@ async function moveRoomTop(interaction, member, channel) {
         { upsert: true }
     ).catch(() => null);
 
-    return interaction.reply({ content: `${channel} odası özel oda oluştur kanalının altına taşındı.`, flags: 64 }).catch(() => null);
+    await interaction.reply({ content: `${channel} odası özel oda oluştur kanalının altına taşındı.`, flags: 64 }).catch(() => null);
+    return sendSecretRoomLog(interaction.guild, member, 0x5865f2, [
+        `⬆️ ${member} (${member.id}) kullanıcısı ${channel} özel odasını üste taşıdı!`,
+    ]);
 }
 
 function getTimestamp(value) {

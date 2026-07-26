@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { ChannelType, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 
@@ -6,9 +7,9 @@ module.exports = {
     aliases: ['etiket-kur', 'join-mention'],
     category: 'Root',
 
-    execute: async (client, message, args) => {
+    execute: async (client, message, args, wency) => {
         if (
-            !global.system.ownerID.includes(message.author.id) &&
+            !hasOwnerRole(message.member, wency) &&
             !message.member.permissions.has(PermissionFlagsBits.Administrator)
         ) {
             return message.reply('Bu komutu kullanmak için yönetici olmalısın.');

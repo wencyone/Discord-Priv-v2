@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { codeBlock } = require('discord.js');
 const util = require('util')
 
@@ -7,7 +8,7 @@ module.exports = {
     category: 'Root',
 
     execute: async (client, message, args, wency) => {
-        if (!global.system.ownerID.includes(message.author.id)) return message.reply({ content: `Bu komutu sadece bot sahipleri kullanabilir.` })
+        if (!hasOwnerRole(message.member, wency)) return message.reply({ content: `Bu komutu sadece bot sahipleri kullanabilir.` })
 
         try {
             const code = args.join(' ')

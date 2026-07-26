@@ -6,10 +6,10 @@ module.exports = {
     aliases: [],
     category: 'Auth',
 
-    execute: async (client, message) => {
+    execute: async (client, message, args, wency) => {
         if (!message.guild || !message.channel) return;
 
-        if (!message.member.permissions.has(Flags.Administrator)) {
+        if (!message.member.permissions.has(Flags.Administrator) && !wency?.banAuth?.some((roleId) => message.member.roles.cache.has(roleId))) {
             return message.reply({ content: 'Yetkin yok.' });
         }
 

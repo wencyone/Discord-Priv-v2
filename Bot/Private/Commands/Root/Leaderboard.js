@@ -1,3 +1,4 @@
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 const { PermissionFlagsBits } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const {
@@ -12,9 +13,9 @@ module.exports = {
     aliases: ['lb', 'topliste'],
     category: 'Root',
 
-    execute: async (client, message) => {
+    execute: async (client, message, args, wency) => {
         if (
-            !global.system.ownerID.includes(message.author.id) &&
+            !hasOwnerRole(message.member, wency) &&
             !message.member.permissions.has(PermissionFlagsBits.Administrator)
         ) {
             return message.reply('Bu komutu sadece yöneticiler kullanabilir.');

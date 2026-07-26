@@ -7,6 +7,7 @@ const {
 } = require('discord.js');
 
 const joinedAt = new Map();
+const hydratedGuilds = new Set();
 
 module.exports = async function VoiceLog(client, oldState, newState) {
     const guild = oldState.guild || newState.guild;
@@ -25,31 +26,36 @@ module.exports = async function VoiceLog(client, oldState, newState) {
     const oldChannel = oldState.channel;
     const newChannel = newState.channel;
     const now = Date.now();
-    const sessionStart = joinedAt.get(member.id);
+    hydrateVoiceSessions(guild, now);
+    const sessionKey = getSessionKey(guild.id, member.id);
+    const sessionStart = joinedAt.get(sessionKey) || now;
 
     if (!oldChannel && newChannel) {
-        joinedAt.set(member.id, now);
+        joinedAt.set(sessionKey, now);
         return sendVoiceLog(logChannel, member, 0x45c486, [
             `${member} **ses kanalına girdi** ${newChannel}`,
+            `**❯ Kanalda bulunan üyeler:** ${formatChannelMembers(newChannel)}`,
         ], now);
     }
 
     if (oldChannel && !newChannel) {
-        const duration = sessionStart ? formatDuration(now - sessionStart) : 'Bilinmiyor';
-        joinedAt.delete(member.id);
+        const duration = formatDuration(now - sessionStart);
+        joinedAt.delete(sessionKey);
         return sendVoiceLog(logChannel, member, 0xed4245, [
             `${member} **ses kanalından ayrıldı** ${oldChannel}`,
+            `**❯ Kanalda bulunan üyeler:** ${formatChannelMembers(oldChannel)}`,
             `**Seste Kalma Süresi:** ${duration}`,
         ], now);
     }
 
     if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
-        const duration = sessionStart ? formatDuration(now - sessionStart) : 'Bilinmiyor';
-        joinedAt.set(member.id, now);
+        const duration = formatDuration(now - sessionStart);
+        joinedAt.set(sessionKey, now);
         return sendVoiceLog(logChannel, member, 0xfee75c, [
             `${member} **ses odasını değiştirdi**`,
             `**Eski Oda:** ${oldChannel}`,
             `**Yeni Oda:** ${newChannel}`,
+            `**❯ Kanalda bulunan üyeler:** ${formatChannelMembers(newChannel)}`,
             `**Eski Odada Geçen Süre:** ${duration}`,
         ], now);
     }
@@ -79,6 +85,7 @@ module.exports = async function VoiceLog(client, oldState, newState) {
 
     return sendVoiceLog(logChannel, member, 0x5865f2, [
         `${member} • ${newChannel}`,
+        `**❯ Kanalda bulunan üyeler:** ${formatChannelMembers(newChannel)}`,
         ...changes,
     ], now);
 };
@@ -114,4 +121,25 @@ function formatDuration(ms) {
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
     return `${hours}sa ${minutes}dk ${seconds}sn`;
+}
+
+function getSessionKey(guildId, memberId) {
+    return `${guildId}:${memberId}`;
+}
+
+function hydrateVoiceSessions(guild, now) {
+    if (hydratedGuilds.has(guild.id)) return;
+    hydratedGuilds.add(guild.id);
+    guild.channels.cache
+        .filter((channel) => channel.isVoiceBased?.())
+        .forEach((channel) => {
+            channel.members.forEach((member) => {
+                joinedAt.set(getSessionKey(guild.id, member.id), now);
+            });
+        });
+}
+
+function formatChannelMembers(channel) {
+    const members = channel?.members?.filter((member) => !member.user.bot).map((member) => `${member}`);
+    return members?.length ? members.join(', ') : 'Kimse yok.';
 }

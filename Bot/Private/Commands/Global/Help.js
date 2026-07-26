@@ -8,6 +8,7 @@ const {
     StringSelectMenuBuilder,
     TextDisplayBuilder,
 } = require('discord.js');
+const { hasOwnerRole } = require('../../../Base/OwnerRole');
 
 const categories = {
     General: { label: 'Kullanıcı Komutları', description: 'Genel kullanıcı komutlarını gösterir.', emoji: '👤' },
@@ -32,9 +33,12 @@ function createMenu(customId, selected, disabled = false) {
         })));
 }
 
-function createPanel(client, customId, selected, disabled = false) {
+function createPanel(client, customId, selected, settings, member, disabled = false) {
     const category = selected ? categories[selected] : null;
-    const commands = selected ? client.commands.filter((command) => command.category === selected) : null;
+    const canSeeRoot = hasOwnerRole(member, settings);
+    const commands = selected
+        ? client.commands.filter((command) => command.category === selected && (command.category !== 'Root' || canSeeRoot))
+        : null;
     const container = new ContainerBuilder()
         .setAccentColor(0x5865f2)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent([
@@ -48,10 +52,12 @@ function createPanel(client, customId, selected, disabled = false) {
         container
             .addTextDisplayComponents(new TextDisplayBuilder().setContent([
                 `## ${category.emoji} ${category.label}`,
-                commands.size
+                selected === 'Root' && !canSeeRoot
+                    ? 'Bu kategoriyi görüntülemek için `.kur` menüsündeki Owner Rollerinden birine sahip olmalısın.'
+                    : commands.size
                     ? commands.map((command) => `\`.${command.name}\``).join('  ')
                     : 'Bu kategoride görüntülenecek komut bulunmuyor.',
-                `-# Bu kategoride ${commands.size} komut bulunuyor.`,
+                `-# Bu kategoride ${selected === 'Root' && !canSeeRoot ? 0 : commands.size} komut bulunuyor.`,
             ].join('\n')))
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
     } else {
@@ -74,11 +80,15 @@ module.exports = {
             return message.reply({ content: `Bu komut sadece ${channel} kanalında kullanılabilir.` });
 
         const query = args[0]?.toLocaleLowerCase('tr-TR');
-        const command = query
+    const command = query
             ? client.commands.get(query) || client.commands.find((item) => item.aliases?.includes(query))
             : null;
 
         if (command) {
+            if (command.category === 'Root' && !hasOwnerRole(message.member, wency)) {
+                return message.reply({ content: 'Bu komutu görüntülemek için `.kur` menüsündeki Owner Rollerinden birine sahip olmalısın.' });
+            }
+
             const aliases = command.aliases?.length ? command.aliases.map((alias) => `\`.${alias}\``).join(', ') : 'Bulunmuyor';
             const container = new ContainerBuilder()
                 .setAccentColor(0x5865f2)
@@ -95,7 +105,7 @@ module.exports = {
         const customId = `help-category:${message.author.id}`;
         const question = await message.channel.send({
             flags: MessageFlags.IsComponentsV2,
-            components: [createPanel(client, customId)],
+            components: [createPanel(client, customId, null, wency, message.member)],
         });
         const collector = question.createMessageComponentCollector({
             filter: (interaction) => interaction.user.id === message.author.id && interaction.customId === customId,
@@ -104,11 +114,11 @@ module.exports = {
 
         collector.on('collect', async (interaction) => {
             const selected = interaction.values[0];
-            await interaction.update({ components: [createPanel(client, customId, selected)] });
+            await interaction.update({ components: [createPanel(client, customId, selected, wency, message.member)] });
         });
 
         collector.on('end', async () => {
-            await question.edit({ components: [createPanel(client, customId, null, true)] }).catch(() => null);
+            await question.edit({ components: [createPanel(client, customId, null, wency, message.member, true)] }).catch(() => null);
         });
     }
 };
