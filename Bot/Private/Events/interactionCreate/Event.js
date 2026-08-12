@@ -1,4 +1,4 @@
-const { Events, ModalBuilder, ActionRowBuilder, TextInputStyle, TextInputBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder, EmbedBuilder, BaseInteraction, PermissionFlagsBits, bold, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Events, ModalBuilder, ActionRowBuilder, TextInputStyle, TextInputBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder, EmbedBuilder, BaseInteraction, PermissionFlagsBits, bold, ButtonBuilder, ButtonStyle, ContainerBuilder, MessageFlags, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
 const { handleGiveawayButton } = require('../../../Base/Giveaway');
 const { formatPrivateRoomName } = require('../../../Base/PrivateRoom');
@@ -47,6 +47,10 @@ client.on(Events.InteractionCreate, async (i = BaseInteraction.prototype) => {
     }
 
     if (i.isButton()) {
+
+        if (i.customId.startsWith('button-register:')) {
+            return handleButtonRegister(i, document);
+        }
 
         if (['register', 'man', 'woman'].includes(i.customId)) {
             return i.reply({ content: 'Butonlu kayıt sistemi kapalıdır.', flags: 64 }).catch(() => null);
@@ -901,6 +905,68 @@ async function handleColorRole(interaction, selectedColor) {
 
     await interaction.member.roles.add(selectedRole).catch(() => null);
     return interaction.reply({ content: `${selectedRole.name} renk rolü verildi.`, flags: 64 }).catch(() => null);
+}
+
+async function handleButtonRegister(interaction, document) {
+    if (!document.buttonRegister) return interaction.reply({ content: 'Butonlu kayıt sistemi kapalıdır.', flags: 64 }).catch(() => null);
+    if (!document.manRole || !document.womanRole || !document.registeredRole || !document.unregisteredRole) {
+        return interaction.reply({ content: 'Kayıt rolleri ayarlanmamış. Yetkililere haber ver.', flags: 64 }).catch(() => null);
+    }
+
+    const gender = interaction.customId.split(':')[1];
+    const genderRoleId = gender === 'man' ? document.manRole : document.womanRole;
+    const otherGenderRoleId = gender === 'man' ? document.womanRole : document.manRole;
+    const genderText = gender === 'man' ? 'Erkek' : 'Kadın';
+    const counterKey = gender === 'man' ? 'manClickCount' : 'womanClickCount';
+
+    if (interaction.member.roles.cache.has(document.registeredRole) || interaction.member.roles.cache.has(document.manRole) || interaction.member.roles.cache.has(document.womanRole)) {
+        return interaction.reply({ content: 'Zaten kayıtlısınız.', flags: 64 }).catch(() => null);
+    }
+
+    await interaction.member.roles.add([document.registeredRole, genderRoleId]).catch(() => null);
+    await interaction.member.roles.remove([document.unregisteredRole, otherGenderRoleId].filter(Boolean)).catch(() => null);
+
+    const counter = await Settings.findOneAndUpdate(
+        { id: interaction.guild.id },
+        { $inc: { [counterKey]: 1 } },
+        { new: true, upsert: true }
+    ).catch(() => null);
+
+    await interaction.reply({ content: `${genderText} olarak kayıt oldunuz!`, flags: 64 }).catch(() => null);
+    await interaction.message.edit(createRegisterPanelPayload(counter || document)).catch(() => null);
+}
+
+function createRegisterPanelPayload(document) {
+    const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('button-register:man')
+                .setLabel(`Erkek (${document?.manClickCount || 0})`)
+                .setEmoji('♂️')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('button-register:woman')
+                .setLabel(`Kadın (${document?.womanClickCount || 0})`)
+                .setEmoji('♀️')
+                .setStyle(ButtonStyle.Danger)
+    );
+
+    const container = new ContainerBuilder()
+        .setAccentColor(0x5865f2)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+            '**Kayıt Paneli**',
+            'Sunucumuza hoş geldiniz! Devam edebilmek için aşağıdaki adımları takip ederek kayıt olmanız gerekmektedir.',
+        ].join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('Lütfen cinsiyetinizi seçerek kayıt işlemini tamamlayın. `Bu seçim daha sonra değiştirilebilir.`'))
+        .addActionRowComponents(row)
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('Yanlış cinsiyet seçmeniz halinde cezalandırılacaksınız.'));
+
+    return {
+        flags: MessageFlags.IsComponentsV2,
+        components: [container],
+        allowedMentions: { parse: [], users: [], roles: [] },
+    };
 }
 
 async function getRoomContext(interaction, document, targetId = interaction.targetId) {

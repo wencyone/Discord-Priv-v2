@@ -6,6 +6,7 @@ const SpamGuard = require('../../Events/messageCreate/Functions/Guard');
 const systemLabels = {
     autoRole: "Otomatik Kayıt",
     genderSystem: "Cinsiyetli Kayıt",
+    buttonRegister: "Butonlu Kayıt",
     linkGuard: "Link Engel",
     spamGuard: "Spam Engel",
     gifGuard: "Gif Engel"
@@ -31,6 +32,7 @@ module.exports = {
                 `${codeBlock('fix', '# Sistem Durumu')}`,
                 `${wency.autoRole ? '✅' : '❌'} Otomatik Rol : ${wency.autoRole ? 'Aktif' : 'Devre Dışı'}`,
                 `${wency.genderSystem ? '✅' : '❌'} Cinsiyet Sistemi : ${wency.genderSystem ? 'Aktif' : 'Devre Dışı'}`,
+                `${wency.buttonRegister ? '✅' : '❌'} Butonlu Kayıt : ${wency.buttonRegister ? 'Aktif' : 'Devre Dışı'}`,
                 `${wency.linkGuard ? '✅' : '❌'} Link Engel : ${wency.linkGuard ? 'Aktif' : 'Devre Dışı'}`,
                 `${wency.spamGuard ? '✅' : '❌'} Spam Engel : ${wency.spamGuard ? 'Aktif' : 'Devre Dışı'}`,
                 `${wency.gifGuard ? '✅' : '❌'} Gif Engel : ${wency.gifGuard ? 'Aktif' : 'Devre Dışı'}`,
@@ -55,6 +57,7 @@ module.exports = {
                 .addOptions([
                     { label: 'Otomatik Kayıt', value: 'autoRole', description: 'Sunucuya girene otomatik üye rolü verir.', emoji: wency.autoRole ? '✅' : '❌' },
                     { label: 'Cinsiyetli Kayıt', value: 'genderSystem', description: 'Cinsiyetli kayıt sistemnini açar kapatır', emoji: wency.genderSystem ? '✅' : '❌' },
+                    { label: 'Butonlu Kayıt', value: 'buttonRegister', description: 'Erkek/Kadın butonlarıyla kayıt sistemini açar kapatır.', emoji: wency.buttonRegister ? '✅' : '❌' },
                     { label: 'Link Engel', value: 'linkGuard', description: 'Link engel koruma açar kapatır.', emoji: wency.linkGuard ? '✅' : '❌' },
                     { label: 'Spam Engel', value: 'spamGuard', description: 'Mesaj spam korumasını açar kapatır.', emoji: wency.spamGuard ? '✅' : '❌' },
                     { label: 'Gif Engel', value: 'gifGuard', description: 'Gif engel korumasını açar kapatır.', emoji: wency.gifGuard ? '✅' : '❌' },
@@ -221,12 +224,23 @@ async function systems(message, wency, option, botMessage, i) {
 
     if (option === 'autoRole' && wency.autoRole) {
         wency.genderSystem = false;
+        wency.buttonRegister = false;
         changes.genderSystem = false;
+        changes.buttonRegister = false;
     }
 
     if (option === 'genderSystem' && wency.genderSystem) {
         wency.autoRole = false;
+        wency.buttonRegister = false;
         changes.autoRole = false;
+        changes.buttonRegister = false;
+    }
+
+    if (option === 'buttonRegister' && wency.buttonRegister) {
+        wency.autoRole = false;
+        wency.genderSystem = false;
+        changes.autoRole = false;
+        changes.genderSystem = false;
     }
 
     await Settings.updateOne({ id: message.guild.id }, { $set: changes }, { upsert: true });
@@ -377,6 +391,7 @@ async function refreshSetup(message, wency, botMessage) {
             .addOptions([
                 { label: 'Otomatik Kayıt', value: 'autoRole', description: 'Sunucuya girene otomatik üye rolü verir.', emoji: wency.autoRole ? '✅' : '❌' },
                 { label: 'Cinsiyetli Kayıt', value: 'genderSystem', description: 'Cinsiyetli kayıt sistemnini açar kapatır', emoji: wency.genderSystem ? '✅' : '❌' },
+                { label: 'Butonlu Kayıt', value: 'buttonRegister', description: 'Erkek/Kadın butonlarıyla kayıt sistemini açar kapatır.', emoji: wency.buttonRegister ? '✅' : '❌' },
                 { label: 'Link Engel', value: 'linkGuard', description: 'Link engel koruma açar kapatır.', emoji: wency.linkGuard ? '✅' : '❌' },
                 { label: 'Spam Engel', value: 'spamGuard', description: 'Mesaj spam korumasını açar kapatır.', emoji: wency.spamGuard ? '✅' : '❌' },
                 { label: 'Gif Engel', value: 'gifGuard', description: 'Gif engel korumasını açar kapatır.', emoji: wency.gifGuard ? '✅' : '❌' },
@@ -429,6 +444,7 @@ async function refreshSetup(message, wency, botMessage) {
             `${codeBlock('fix', '# Sistem Durumu')}`,
             `${wency.autoRole ? '✅' : '❌'} Otomatik Rol : ${wency.autoRole ? 'Aktif' : 'Devre Dışı'}`,
             `${wency.genderSystem ? '✅' : '❌'} Cinsiyet Sistemi : ${wency.genderSystem ? 'Aktif' : 'Devre Dışı'}`,
+            `${wency.buttonRegister ? '✅' : '❌'} Butonlu Kayıt : ${wency.buttonRegister ? 'Aktif' : 'Devre Dışı'}`,
             `${wency.linkGuard ? '✅' : '❌'} Link Engel : ${wency.linkGuard ? 'Aktif' : 'Devre Dışı'}`,
             `${wency.spamGuard ? '✅' : '❌'} Spam Engel : ${wency.spamGuard ? 'Aktif' : 'Devre Dışı'}`,
             `${wency.gifGuard ? '✅' : '❌'} Gif Engel : ${wency.gifGuard ? 'Aktif' : 'Devre Dışı'}`,
@@ -455,6 +471,7 @@ function createSetupPanel(message, wency, rows) {
         `${codeBlock('fix', '# Sistem Durumu')}`,
         `${wency.autoRole ? '✅' : '❌'} Otomatik Rol : ${wency.autoRole ? 'Aktif' : 'Devre Dışı'}`,
         `${wency.genderSystem ? '✅' : '❌'} Cinsiyet Sistemi : ${wency.genderSystem ? 'Aktif' : 'Devre Dışı'}`,
+        `${wency.buttonRegister ? '✅' : '❌'} Butonlu Kayıt : ${wency.buttonRegister ? 'Aktif' : 'Devre Dışı'}`,
         `${wency.linkGuard ? '✅' : '❌'} Link Engel : ${wency.linkGuard ? 'Aktif' : 'Devre Dışı'}`,
         `${wency.spamGuard ? '✅' : '❌'} Spam Engel : ${wency.spamGuard ? 'Aktif' : 'Devre Dışı'}`,
         `${wency.gifGuard ? '✅' : '❌'} Gif Engel : ${wency.gifGuard ? 'Aktif' : 'Devre Dışı'}`,

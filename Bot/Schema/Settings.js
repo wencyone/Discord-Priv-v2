@@ -5,6 +5,7 @@ const model = mongoose.model('wency-settings', mongoose.Schema({
     
     autoRole: { type: Boolean, default: false },
     genderSystem: { type: Boolean, default: false },
+    buttonRegister: { type: Boolean, default: false },
     linkGuard: { type: Boolean, default: true },
     spamGuard: { type: Boolean, default: false },
     gifGuard: { type: Boolean, default: true },

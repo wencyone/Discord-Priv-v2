@@ -57,9 +57,9 @@ client.on(Events.GuildMemberAdd, async (member) => {
         return;
     }
 
-    if (!document.genderSystem) return;
+    if (!document.genderSystem && !document.buttonRegister) return;
 
-    if (document.welcomeChannel) {
+    if (document.genderSystem && document.welcomeChannel) {
         const welcomeChannel = member.guild.channels.cache.get(document.welcomeChannel);
         const registerInfoChannel = member.guild.channels.cache.find((channel) => channel.name === 'nasıl-kayıt-olurum' || channel.name === 'nasil-kayit-olurum');
         const registerInfoText = registerInfoChannel ? `${registerInfoChannel}` : '#nasıl-kayıt-olurum';
