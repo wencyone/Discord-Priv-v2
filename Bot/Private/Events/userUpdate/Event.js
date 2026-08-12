@@ -1,6 +1,6 @@
 const { Events } = require('discord.js');
 const Settings = require('../../../Schema/Settings');
-const { syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
+const { isBannedGuildTagSystemEnabled, syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
 const { syncGuildTagRole } = require('../../../Base/GuildTagRole');
 
 client.on(Events.UserUpdate, async (oldUser, newUser) => {
@@ -13,7 +13,7 @@ client.on(Events.UserUpdate, async (oldUser, newUser) => {
     const member = await guild.members.fetch(newUser.id).catch(() => null);
     if (!member) return;
 
-    if (settings.autoRole && settings.bannedGuildTags?.length) {
+    if (isBannedGuildTagSystemEnabled(settings) && settings.bannedGuildTags?.length) {
         const tagStatus = await syncBannedGuildTag(client, member, settings, newUser)
             .catch((error) => {
                 console.error('[BANNED_GUILD_TAG_UPDATE]', error);

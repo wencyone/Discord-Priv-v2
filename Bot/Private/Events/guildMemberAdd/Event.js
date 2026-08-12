@@ -3,7 +3,7 @@ const Settings = require('../../../Schema/Settings');
 const Punishment = require('../../../Schema/Punishment');
 const { releaseJail } = require('../../../Base/Jail');
 const { createMemberLog } = require('../../../Base/MemberLog');
-const { syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
+const { isBannedGuildTagSystemEnabled, syncBannedGuildTag } = require('../../../Base/BannedGuildTag');
 const { syncGuildTagRole } = require('../../../Base/GuildTagRole');
 const { logInviteJoin } = require('../../../Base/InviteLog');
 
@@ -17,7 +17,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     const document = await Settings.findOne({ id: member.guild.id });
     if (!document) return;
 
-    if (document.autoRole) {
+    if (isBannedGuildTagSystemEnabled(document) && document.bannedGuildTags?.length) {
         const user = await client.users.fetch(member.id, { force: true }).catch(() => member.user);
         const tagStatus = await syncBannedGuildTag(client, member, document, user).catch((error) => {
             console.error('[BANNED_GUILD_TAG_JOIN]', error);

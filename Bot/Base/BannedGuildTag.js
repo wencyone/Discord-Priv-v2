@@ -21,7 +21,7 @@ function findBannedGuildTag(user, settings) {
 }
 
 async function syncBannedGuildTag(client, member, settings, user = member.user) {
-    if (!settings?.autoRole) return 'disabled';
+    if (!isBannedGuildTagSystemEnabled(settings)) return 'disabled';
 
     const bannedTag = findBannedGuildTag(user, settings);
     const punishment = await Punishment.findOne({
@@ -38,6 +38,7 @@ async function syncBannedGuildTag(client, member, settings, user = member.user) 
             if (jailRole && !member.roles.cache.has(jailRole.id)) {
                 await member.roles.set([jailRole.id], 'Yasaklı guild tag cezası devam ediyor.').catch(() => null);
             }
+            await disconnectVoice(member);
             return 'jailed';
         }
 
@@ -54,7 +55,18 @@ async function syncBannedGuildTag(client, member, settings, user = member.user) 
 
 async function applyBannedGuildTagJail(client, member, settings, bannedTag) {
     const jailRole = member.guild.roles.cache.get(settings.jailRole);
-    if (!jailRole || jailRole.position >= member.guild.members.me.roles.highest.position) return 'blocked';
+    if (!jailRole || jailRole.position >= member.guild.members.me.roles.highest.position) {
+        await sendBannedGuildTagLog(member.guild, createBannedGuildTagLog(member, {
+            color: 0xed4245,
+            title: 'Yasaklı Guild Tag İşlemi Uygulanamadı',
+            description: `${member} yasaklı guild tag kullandı fakat jail rolü verilemedi.`,
+            fields: [
+                { name: 'Yasaklı Sunucu', value: bannedTag.name || bannedTag.guildId, inline: true },
+                { name: 'Kullanıcı ID', value: member.id, inline: true },
+            ],
+        }));
+        return 'blocked';
+    }
 
     const previousRoles = member.roles.cache
         .filter((role) => role.id !== member.guild.id && !role.managed && role.id !== jailRole.id)
@@ -82,6 +94,7 @@ async function applyBannedGuildTagJail(client, member, settings, bannedTag) {
     try {
         await member.roles.set([jailRole.id], 'Yasaklı guild tag kullandığı için kalıcı jail.');
         await member.setNickname('Jail', 'Yasaklı guild tag kullandığı için kalıcı jail.');
+        await disconnectVoice(member);
     } catch (error) {
         await member.roles.set(previousRoles, 'Başarısız jail işlemi geri alındı.').catch(() => null);
         await member.setNickname(punishment.previousNickname, 'Başarısız jail işlemi geri alındı.').catch(() => null);
@@ -97,49 +110,110 @@ async function applyBannedGuildTagJail(client, member, settings, bannedTag) {
             `**Yasaklı Sunucu:** ${bannedTag.name || bannedTag.guildId}${bannedTag.tag ? ` [${bannedTag.tag}]` : ''}`,
             `**Ceza Numarası:** #${punishment.caseId}`,
             '',
-            'Bu guild tagini bıraktığınızda jailiniz bot tarafından otomatik açılacak ve kayıt edileceksiniz.',
+            'Bu guild tagini bıraktığınızda jailiniz bot tarafından otomatik açılacak ve sunucunun kayıt sistemine göre rolünüz düzenlenecek.',
             'Yasaklı guild tagini tekrar alırsanız otomatik olarak yeniden jaile atılacaksınız.',
         ].join('\n')
     }).catch(() => null);
 
-    await sendLog(member.guild, new EmbedBuilder()
-        .setTitle('Yasaklı Guild Tag Jailandı')
-        .setColor(0xed4245)
-        .setDescription(`${member} yasaklı guild tag kullandığı için kalıcı olarak jaillendi.`)
-        .addFields(
+    await sendBannedGuildTagLog(member.guild, createBannedGuildTagLog(member, {
+        color: 0xed4245,
+        title: 'Yasaklı Guild Tag Jailandı',
+        description: `${member} yasaklı guild tag kullandığı için kalıcı olarak jaillendi.`,
+        fields: [
             { name: 'Ceza Numarası', value: `#${punishment.caseId}`, inline: true },
             { name: 'Yasaklı Sunucu', value: bannedTag.name || bannedTag.guildId, inline: true },
-            { name: 'Kullanıcı ID', value: member.id, inline: true }
-        )
-        .setTimestamp());
+            { name: 'Kullanıcı ID', value: member.id, inline: true },
+        ],
+    }));
 
     return 'jailed';
 }
 
 async function releaseBannedGuildTagJail(client, member, settings, punishment) {
-    const registeredRole = member.guild.roles.cache.get(settings.registeredRole);
-    if (!registeredRole || registeredRole.position >= member.guild.members.me.roles.highest.position) return false;
+    const releaseData = getBannedGuildTagReleaseData(member, settings);
+    if (!releaseData) return false;
 
-    await member.roles.set([registeredRole.id], 'Yasaklı guild tag bırakıldı; otomatik kayıt edildi.');
+    await member.roles.set(releaseData.roleIds, 'Yasaklı guild tag bırakıldı; kayıt sistemine göre rol verildi.');
     punishment.active = false;
     await punishment.save();
 
-    await sendLog(member.guild, new EmbedBuilder()
-        .setTitle('Yasaklı Guild Tag Jaili Açıldı')
-        .setColor(0x57f287)
-        .setDescription(`${member} yasaklı guild tagini bıraktığı için jaili açıldı ve otomatik kayıt edildi.`)
-        .addFields(
+    await sendBannedGuildTagLog(member.guild, createBannedGuildTagLog(member, {
+        color: 0x57f287,
+        title: 'Yasaklı Guild Tag Jaili Açıldı',
+        description: `${member} yasaklı guild tagini bıraktığı için jaili açıldı.`,
+        fields: [
             { name: 'Ceza Numarası', value: `#${punishment.caseId}`, inline: true },
-            { name: 'Verilen Rol', value: `${registeredRole}`, inline: true },
-            { name: 'Kullanıcı ID', value: member.id, inline: true }
-        )
-        .setTimestamp());
+            { name: 'Kayıt Sistemi', value: releaseData.system, inline: true },
+            { name: 'Verilen Rol', value: releaseData.roleText, inline: true },
+            { name: 'Kullanıcı ID', value: member.id, inline: true },
+        ],
+    }));
 
     return true;
 }
 
-async function sendLog(guild, embed) {
-    const channel = guild.channels.cache.find((item) => item.name === 'jail-log');
+function getBannedGuildTagReleaseData(member, settings) {
+    if (settings.autoRole) {
+        const registeredRole = member.guild.roles.cache.get(settings.registeredRole);
+        if (!canManageRole(member, registeredRole)) return null;
+
+        return {
+            roleIds: [registeredRole.id],
+            roleText: `${registeredRole}`,
+            system: 'Otomatik Kayıt',
+        };
+    }
+
+    if (settings.genderSystem || settings.buttonRegister) {
+        const unregisteredRole = member.guild.roles.cache.get(settings.unregisteredRole);
+        if (!unregisteredRole) {
+            return {
+                roleIds: [],
+                roleText: 'Rol verilmedi',
+                system: settings.buttonRegister ? 'Butonlu Kayıt' : 'Manuel Kayıt',
+            };
+        }
+        if (!canManageRole(member, unregisteredRole)) return null;
+
+        return {
+            roleIds: [unregisteredRole.id],
+            roleText: `${unregisteredRole}`,
+            system: settings.buttonRegister ? 'Butonlu Kayıt' : 'Manuel Kayıt',
+        };
+    }
+
+    return {
+        roleIds: [],
+        roleText: 'Rol verilmedi',
+        system: 'Kayıt Sistemi Kapalı',
+    };
+}
+
+function canManageRole(member, role) {
+    return role && role.position < member.guild.members.me.roles.highest.position;
+}
+
+function isBannedGuildTagSystemEnabled(settings) {
+    return Boolean(settings?.autoRole || settings?.genderSystem || settings?.buttonRegister);
+}
+
+async function disconnectVoice(member) {
+    if (!member.voice?.channelId) return false;
+    await member.voice.disconnect('Yasaklı guild tag tespit edildi.').catch(() => null);
+    return true;
+}
+
+function createBannedGuildTagLog(member, data) {
+    return new EmbedBuilder()
+        .setTitle(data.title)
+        .setColor(data.color)
+        .setDescription(data.description)
+        .addFields(data.fields)
+        .setTimestamp();
+}
+
+async function sendBannedGuildTagLog(guild, embed) {
+    const channel = guild.channels.cache.find((item) => item.name === 'yasaklı-tag-log' || item.name === 'yasakli-tag-log');
     if (channel?.isTextBased()) {
         await channel.send({ embeds: [embed], allowedMentions: { parse: [], users: [], roles: [] } }).catch(() => null);
     }
@@ -148,6 +222,7 @@ async function sendLog(guild, embed) {
 module.exports = {
     findBannedGuildTag,
     getPrimaryGuildData,
+    isBannedGuildTagSystemEnabled,
     releaseBannedGuildTagJail,
     syncBannedGuildTag,
 };
